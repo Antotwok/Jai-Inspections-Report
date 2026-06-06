@@ -1,0 +1,464 @@
+<main class="rt-main">
+  <header class="generic-header">
+    <div>
+      <p class="eyebrow">NBLA Radiography Test Report</p>
+      <h1>Create RT Report</h1>
+      <p class="header-copy">{{ selectedProfileName }}</p>
+    </div>
+    <div class="header-actions">
+      <a class="home-link" href="/">Dashboard</a>
+      <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
+    </div>
+  </header>
+
+  <section class="page-controls" aria-label="Report controls">
+    <div class="page-controls-left">
+      <button type="button" class="export-action" (click)="exportExcel()">XLSX</button>
+      <button type="button" (click)="saveDraft()">Save</button>
+      <button type="button" (click)="loadDraft()">Load</button>
+      <button type="button" class="quiet-action" (click)="clearDraft()">Reset</button>
+    </div>
+
+    <div class="page-controls-right">
+      <button type="button" (click)="settingsOpen = !settingsOpen">Settings</button>
+    </div>
+  </section>
+
+  <section class="rt-grid">
+    <section class="workspace-shell controls-panel">
+
+      <section class="report-summary" aria-label="Report summary">
+
+      <div>
+        <span>Template</span>
+        <strong>{{ selectedProfileShortCode }}</strong>
+      </div>
+      <div>
+        <span>Rows</span>
+        <strong>{{ report.lines.length }}</strong>
+      </div>
+      <div>
+        <span>Accepted</span>
+        <strong>{{ acceptedLineCount }}</strong>
+      </div>
+      <div>
+        <span>Rejected</span>
+        <strong>{{ rejectedLineCount }}</strong>
+      </div>
+    </section>
+
+    <nav class="builder-tabs" aria-label="Report builder sections">
+      <button type="button" [class.active]="activeTab === 'content'" (click)="activeTab = 'content'">Content</button>
+      <button type="button" [class.active]="activeTab === 'rows'" (click)="activeTab = 'rows'">Rows</button>
+    </nav>
+
+    <ng-container *ngIf="settingsOpen">
+    <section class="form-section settings-hero">
+
+      <div class="save-panel-header">
+        <div>
+          <p class="section-kicker">Selected setup</p>
+          <h2>{{ selectedProfileName }}</h2>
+          <p>Choose a prepared client setup, manage drafts, and tune the printed report appearance.</p>
+        </div>
+        <div class="profile-chip">{{ selectedProfileShortCode }}</div>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <div class="section-title-row">
+        <h2>Templates</h2>
+        <span class="section-meta">{{ companyProfiles.length }} presets</span>
+      </div>
+      <div class="template-grid">
+        <button
+          type="button"
+          class="template-card"
+          *ngFor="let profile of companyProfiles"
+          [class.selected]="profile.id === selectedProfileId"
+          (click)="selectProfile(profile.id)"
+        >
+          <span>{{ profile.shortCode }}</span>
+          <strong>{{ profile.name }}</strong>
+        </button>
+      </div>
+    </section>
+
+    <section class="form-section action-panel">
+      <div class="save-panel-header">
+        <div>
+          <h2>Save And Export</h2>
+          <p>Keep a draft, restore it later, or create the final file.</p>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
+        <button type="button" class="export-action" (click)="exportExcel()">Export XLSX</button>
+        <button type="button" (click)="saveDraft()">Save Draft</button>
+        <button type="button" (click)="loadDraft()">Load Draft</button>
+        <button type="button" class="quiet-action" (click)="clearDraft()">Reset</button>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <div class="section-title-row">
+        <h2>Text Size</h2>
+        <span class="section-meta">Print preview</span>
+      </div>
+      <div class="text-size-grid">
+        <label *ngFor="let control of textSizeControls">
+          <span>{{ control.label }}</span>
+          <div class="range-row">
+            <input
+              type="range"
+              [(ngModel)]="textSizes[control.key]"
+              [name]="'textSize' + control.key"
+              [min]="control.min"
+              [max]="control.max"
+              step="1"
+            />
+            <output>{{ textSizes[control.key] }}px</output>
+          </div>
+        </label>
+      </div>
+    </section>
+    </ng-container>
+
+    <ng-container *ngIf="activeTab === 'content'">
+    <section class="form-section">
+      <div class="section-title-row">
+        <h2>Client And Report</h2>
+        <span class="section-meta">Document identity</span>
+      </div>
+      <div class="field-grid two-column">
+        <label>
+          Client name
+          <input [(ngModel)]="report.clientName" name="clientName" />
+        </label>
+        <label>
+          Report number
+          <input [(ngModel)]="report.reportNumber" name="reportNumber" />
+        </label>
+        <label class="full-width">
+          Client address
+          <textarea [(ngModel)]="report.clientAddress" name="clientAddress" rows="4"></textarea>
+        </label>
+        <label>
+          Report date
+          <input type="date" [(ngModel)]="report.reportDate" name="reportDate" />
+        </label>
+        <label>
+          Job / item prefix
+          <input [(ngModel)]="report.jobNumber" name="jobNumber" />
+        </label>
+        <label class="full-width">
+          Item title
+          <input [(ngModel)]="report.itemTitle" name="itemTitle" />
+        </label>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <div class="section-title-row">
+        <h2>Test Details</h2>
+        <span class="section-meta">Radiography parameters</span>
+      </div>
+      <div class="field-grid three-column">
+        <label>
+          Source
+          <input [(ngModel)]="report.source" name="source" />
+        </label>
+        <label>
+          Strength
+          <input [(ngModel)]="report.strength" name="strength" />
+        </label>
+        <label>
+          Technique
+          <input [(ngModel)]="report.technique" name="technique" />
+        </label>
+        <label>
+          Penetrameter
+          <input [(ngModel)]="report.penetrameter" name="penetrameter" />
+        </label>
+        <label>
+          Lead screens
+          <input [(ngModel)]="report.screens" name="screens" />
+        </label>
+        <label>
+          Film
+          <input [(ngModel)]="report.film" name="film" />
+        </label>
+        <label>
+          Thickness
+          <input [(ngModel)]="report.thicknessRange" name="thicknessRange" />
+        </label>
+        <label>
+          Density
+          <input [(ngModel)]="report.density" name="density" />
+        </label>
+        <label>
+          Sensitivity
+          <input [(ngModel)]="report.sensitivity" name="sensitivity" />
+        </label>
+        <label>
+          Procedure
+          <input [(ngModel)]="report.procedure" name="procedure" />
+        </label>
+        <label>
+          Acceptance standard
+          <input [(ngModel)]="report.acceptanceStandard" name="acceptanceStandard" />
+        </label>
+        <label>
+          Weld process
+          <input [(ngModel)]="report.weldProcess" name="weldProcess" />
+        </label>
+      </div>
+    </section>
+    </ng-container>
+
+    <ng-container *ngIf="activeTab === 'rows'">
+    <section class="form-section">
+      <div class="section-title-row">
+        <h2>Film Rows</h2>
+        <div class="compact-actions">
+          <button type="button" (click)="addCastingSet()">Add 5 Row Set</button>
+          <button type="button" (click)="addLine()">Add Row</button>
+        </div>
+      </div>
+
+      <div class="line-editor">
+        <div class="line-card" *ngFor="let line of report.lines; let i = index; trackBy: trackByIndex">
+          <div class="line-card-header">
+            <strong>Row {{ i + 1 }}</strong>
+            <div class="row-actions">
+              <button type="button" (click)="duplicateLine(i)">Copy</button>
+              <button type="button" (click)="removeLine(i)">Remove</button>
+            </div>
+          </div>
+          <label>
+            Description
+            <input [(ngModel)]="line.description" [name]="'description' + i" />
+          </label>
+          <div class="mini-grid">
+            <label>
+              Thickness
+              <input [(ngModel)]="line.thickness" [name]="'thickness' + i" />
+            </label>
+            <label>
+              Location
+              <input [(ngModel)]="line.location" [name]="'location' + i" />
+            </label>
+            <label>
+              Film size
+              <input [(ngModel)]="line.filmSize" [name]="'filmSize' + i" />
+            </label>
+            <label>
+              Area
+              <input [(ngModel)]="line.area" [name]="'area' + i" />
+            </label>
+            <label>
+              Observation
+              <select [(ngModel)]="line.observation" [name]="'observation' + i">
+                <option *ngFor="let option of observationOptions" [value]="option">{{ option }}</option>
+              </select>
+            </label>
+            <label>
+              Result
+              <select [(ngModel)]="line.result" [name]="'result' + i">
+                <option *ngFor="let option of resultOptions" [value]="option">{{ option }}</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+    </ng-container>
+
+    <ng-container *ngIf="activeTab === 'content'">
+    <section class="form-section">
+      <div class="section-title-row">
+        <h2>Bottom Notes And Signatures</h2>
+        <span class="section-meta">Footer content</span>
+      </div>
+      <div class="field-grid">
+        <label>
+          Legend line 1
+          <input [(ngModel)]="report.legendLine1" name="legendLine1" />
+        </label>
+        <label>
+          Legend line 2
+          <input [(ngModel)]="report.legendLine2" name="legendLine2" />
+        </label>
+        <label>
+          Legend line 3
+          <input [(ngModel)]="report.legendLine3" name="legendLine3" />
+        </label>
+      </div>
+      <div class="field-grid three-column">
+        <label>
+          Left box heading
+          <input [(ngModel)]="report.reviewedByLabel" name="reviewedByLabel" />
+        </label>
+        <label>
+          Middle box heading
+          <input [(ngModel)]="report.verifiedByLabel" name="verifiedByLabel" />
+        </label>
+        <label>
+          Right box heading
+          <input [(ngModel)]="report.clientLabel" name="clientLabel" />
+        </label>
+        <label>
+          Left box text
+          <input [(ngModel)]="report.reviewedBy" name="reviewedBy" />
+        </label>
+        <label>
+          Middle box text
+          <input [(ngModel)]="report.verifiedBy" name="verifiedBy" />
+        </label>
+        <label>
+          Right box text
+          <input [(ngModel)]="report.clientRepresentative" name="clientRepresentative" />
+        </label>
+      </div>
+    </section>
+    </ng-container>
+  </section>
+
+  <section class="preview-panel" aria-label="Report preview">
+
+    <div class="preview-header">
+      <div>
+        <p class="eyebrow">Live A4 Preview</p>
+        <h2>{{ report.reportNumber }}</h2>
+      </div>
+      <div class="preview-actions">
+        <button type="button" (click)="exportExcel()">XLSX</button>
+        <button type="button" class="primary-action" (click)="printReport()">PDF</button>
+      </div>
+    </div>
+    <article
+      class="report-page"
+      [style.--company-text-size.px]="textSizes.company"
+      [style.--title-text-size.px]="textSizes.title"
+      [style.--report-base-size.px]="textSizes.body"
+      [style.--meta-text-size.px]="textSizes.meta"
+      [style.--table-text-size.px]="textSizes.table"
+      [style.--legend-text-size.px]="textSizes.legend"
+      [style.--signature-text-size.px]="textSizes.signature"
+    >
+      <header class="company-header">
+        <div class="logo-mark">JIA</div>
+        <div class="company-copy">
+          <h2>Jai Inspection Agencies LLP</h2>
+          <p>(Formerly known as JAI INSPECTION AGENCIES)</p>
+          <strong>An ISO 9001 : 2015 Organization</strong>
+          <p>21, Natesan Nagar, Ayanambakkam, Chennai - 600 095</p>
+          <p>jainspectionagencies.com | jai_ndt@yahoo.com | Phone: 72009 29666</p>
+        </div>
+        <div class="iso-box">IAS<br />ISO 9001:2015</div>
+      </header>
+
+      <h1 class="report-title">Radiography Test Report</h1>
+
+      <section class="report-meta-grid">
+        <div class="client-block">
+          <input class="preview-field strong-field" [(ngModel)]="report.clientName" name="previewClientName" />
+          <textarea class="preview-field preserve-lines" [(ngModel)]="report.clientAddress" name="previewClientAddress" rows="4"></textarea>
+        </div>
+        <div class="report-number-block">
+          <p><span>Report No.</span> <input class="preview-field inline-field" [(ngModel)]="report.reportNumber" name="previewReportNumber" /></p>
+          <p><span>Report Dated</span> <input class="preview-field inline-field" type="date" [(ngModel)]="report.reportDate" name="previewReportDate" /></p>
+        </div>
+      </section>
+
+      <section class="technical-grid">
+        <dl>
+          <div><dt>Source</dt><dd><input class="preview-field" [(ngModel)]="report.source" name="previewSource" /></dd></div>
+          <div><dt>Strength</dt><dd><input class="preview-field" [(ngModel)]="report.strength" name="previewStrength" /></dd></div>
+          <div><dt>Technique</dt><dd><input class="preview-field" [(ngModel)]="report.technique" name="previewTechnique" /></dd></div>
+          <div><dt>Process used</dt><dd><input class="preview-field" [(ngModel)]="report.weldProcess" name="previewWeldProcess" /></dd></div>
+          <div><dt>Lead Screens</dt><dd><input class="preview-field" [(ngModel)]="report.screens" name="previewScreens" /></dd></div>
+        </dl>
+        <dl>
+          <div><dt>Film</dt><dd><input class="preview-field" [(ngModel)]="report.film" name="previewFilm" /></dd></div>
+          <div><dt>Thickness</dt><dd><input class="preview-field" [(ngModel)]="report.thicknessRange" name="previewThicknessRange" /></dd></div>
+          <div><dt>Density</dt><dd><input class="preview-field" [(ngModel)]="report.density" name="previewDensity" /></dd></div>
+          <div><dt>Sensitivity</dt><dd><input class="preview-field" [(ngModel)]="report.sensitivity" name="previewSensitivity" /></dd></div>
+          <div><dt>Procedure Specification</dt><dd><input class="preview-field" [(ngModel)]="report.procedure" name="previewProcedure" /></dd></div>
+          <div><dt>Acceptance Standard</dt><dd><input class="preview-field" [(ngModel)]="report.acceptanceStandard" name="previewAcceptanceStandard" /></dd></div>
+        </dl>
+      </section>
+
+      <div class="item-title">
+        <input class="preview-field strong-field center-field" [(ngModel)]="report.itemTitle" name="previewItemTitle" />
+      </div>
+
+      <div class="preview-table-toolbar">
+        <button type="button" (click)="addLine()">Add Row</button>
+        <button type="button" (click)="addCastingSet()">Add 5 Row Set</button>
+      </div>
+
+      <table class="inspection-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Thickness</th>
+            <th>Location</th>
+            <th>Film Size</th>
+            <th>Area</th>
+            <th>Observation</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of report.lines; let rowIndex = index; trackBy: trackByIndex">
+            <td class="description-cell">
+              <button
+                type="button"
+                class="table-row-remove"
+                aria-label="Remove row"
+                [disabled]="report.lines.length === 1"
+                (click)="removeLine(rowIndex)"
+              >
+                -
+              </button>
+              <input class="preview-field" [(ngModel)]="line.description" [name]="'previewDescription' + rowIndex" />
+            </td>
+            <td><input class="preview-field center-field" [(ngModel)]="line.thickness" [name]="'previewThickness' + rowIndex" /></td>
+            <td><input class="preview-field center-field" [(ngModel)]="line.location" [name]="'previewLocation' + rowIndex" /></td>
+            <td><input class="preview-field center-field" [(ngModel)]="line.filmSize" [name]="'previewFilmSize' + rowIndex" /></td>
+            <td><input class="preview-field center-field" [(ngModel)]="line.area" [name]="'previewArea' + rowIndex" /></td>
+            <td><input class="preview-field center-field" [(ngModel)]="line.observation" [name]="'previewObservation' + rowIndex" /></td>
+            <td><input class="preview-field center-field" [(ngModel)]="line.result" [name]="'previewResult' + rowIndex" /></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="table-continuation" aria-hidden="true"></div>
+
+      <section class="legend">
+        <p><input class="preview-field" [(ngModel)]="report.legendLine1" name="previewLegendLine1" /></p>
+        <p><input class="preview-field" [(ngModel)]="report.legendLine2" name="previewLegendLine2" /></p>
+        <p><input class="preview-field" [(ngModel)]="report.legendLine3" name="previewLegendLine3" /></p>
+      </section>
+
+      <section class="signature-grid">
+        <div>
+          <span><input class="preview-field center-field" [(ngModel)]="report.reviewedByLabel" name="previewReviewedByLabel" /></span>
+          <strong><input class="preview-field center-field seal-field" [(ngModel)]="report.reviewedBy" name="previewReviewedBy" /></strong>
+        </div>
+        <div>
+          <span><input class="preview-field center-field" [(ngModel)]="report.verifiedByLabel" name="previewVerifiedByLabel" /></span>
+          <strong><input class="preview-field center-field seal-field" [(ngModel)]="report.verifiedBy" name="previewVerifiedBy" /></strong>
+        </div>
+        <div>
+          <span><input class="preview-field center-field" [(ngModel)]="report.clientLabel" name="previewClientLabel" /></span>
+          <strong><input class="preview-field center-field seal-field" [(ngModel)]="report.clientRepresentative" name="previewClientRepresentative" /></strong>
+        </div>
+      </section>
+    </article>
+  </section>
+</section>
+</main>
+

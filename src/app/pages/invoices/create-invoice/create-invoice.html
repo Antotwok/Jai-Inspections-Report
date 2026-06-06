@@ -1,0 +1,179 @@
+<main class="report-builder">
+  <section class="workspace-shell controls-panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Jai Inspection Agencies</p>
+        <h1>Invoice Builder</h1>
+      </div>
+      <a class="home-link" href="/">Dashboard</a>
+    </div>
+
+    <div class="action-row">
+      <button type="button" class="primary-action" (click)="printInvoice()">Print / PDF</button>
+      <button type="button" (click)="saveDraft()">Save Draft</button>
+      <button type="button" (click)="loadDraft()">Load Draft</button>
+      <button type="button" class="quiet-action" (click)="clearDraft()">Reset</button>
+    </div>
+
+    <section class="form-section">
+      <h2>Invoice Details</h2>
+      <div class="field-grid two-column">
+        <label>
+          Client name
+          <input [(ngModel)]="invoice.clientName" name="clientName" />
+        </label>
+        <label>
+          Invoice number
+          <input [(ngModel)]="invoice.invoiceNumber" name="invoiceNumber" />
+        </label>
+        <label class="full-width">
+          Client address
+          <textarea [(ngModel)]="invoice.clientAddress" name="clientAddress" rows="4"></textarea>
+        </label>
+        <label>
+          Invoice date
+          <input type="date" [(ngModel)]="invoice.invoiceDate" name="invoiceDate" />
+        </label>
+        <label class="full-width">
+          Subject / Description
+          <input [(ngModel)]="invoice.subject" name="subject" />
+        </label>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <h2>Line Items</h2>
+      <div class="section-title-row">
+        <h2 style="margin:0">Items</h2>
+        <div class="compact-actions">
+          <button type="button" (click)="addLine()">Add Row</button>
+          <button type="button" (click)="addBulkSet()">Add 5 Row Set</button>
+        </div>
+      </div>
+
+      <div class="line-editor">
+        <div class="line-card" *ngFor="let line of invoice.lines; let i = index; trackBy: trackByIndex">
+          <div class="line-card-header">
+            <strong>Row {{ i + 1 }}</strong>
+            <div>
+              <button type="button" (click)="duplicateLine(i)">Copy</button>
+              <button type="button" (click)="removeLine(i)">Remove</button>
+            </div>
+          </div>
+
+          <div class="mini-grid">
+            <label>
+              Description
+              <input [(ngModel)]="line.description" [name]="'desc' + i" />
+            </label>
+            <label>
+              Qty
+              <input [(ngModel)]="line.qty" [name]="'qty' + i" />
+            </label>
+            <label>
+              Rate
+              <input [(ngModel)]="line.rate" [name]="'rate' + i" />
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <h2>Signatures</h2>
+      <div class="field-grid three-column">
+        <label>
+          Prepared by
+          <input [(ngModel)]="invoice.preparedBy" name="preparedBy" />
+        </label>
+        <label>
+          Verified by
+          <input [(ngModel)]="invoice.verifiedBy" name="verifiedBy" />
+        </label>
+        <label>
+          Authorized sign
+          <input [(ngModel)]="invoice.authorizedBy" name="authorizedBy" />
+        </label>
+      </div>
+    </section>
+  </section>
+
+  <section class="preview-panel" aria-label="Invoice preview">
+    <article class="report-page invoice-page">
+      <header class="company-header invoice-header">
+        <div class="logo-mark">JIA</div>
+        <div class="company-copy">
+          <h2>Jai Inspection Agencies LLP</h2>
+          <p>(Formerly known as JAI INSPECTION AGENCIES)</p>
+          <strong>An ISO 9001 : 2015 Organization</strong>
+          <p>21, Natesan Nagar, Ayanambakkam, Chennai - 600 095</p>
+        </div>
+        <div class="iso-box">IAS<br />ISO 9001:2015</div>
+      </header>
+
+      <!-- Template image used for the same layout; watermark should be ignored by printing/cropping via CSS. -->
+      <div class="invoice-template" aria-hidden="true">
+        <img class="invoice-template-image" src="/assets/WhatsApp Image 2026-06-02 at 12.33.42.jpeg" alt="" />
+      </div>
+
+      <div class="invoice-overlay">
+        <div class="overlay-grid">
+          <div class="cell">
+            <div class="label">Client</div>
+            <input class="preview-field" [(ngModel)]="invoice.clientName" name="previewClientName" />
+            <textarea class="preview-field preserve-lines" [(ngModel)]="invoice.clientAddress" name="previewClientAddress" rows="3"></textarea>
+          </div>
+
+          <div class="cell">
+            <div class="label">Invoice No.</div>
+            <input class="preview-field" [(ngModel)]="invoice.invoiceNumber" name="previewInvoiceNumber" />
+            <div class="label">Date</div>
+            <input class="preview-field" type="date" [(ngModel)]="invoice.invoiceDate" name="previewInvoiceDate" />
+          </div>
+
+          <div class="cell full">
+            <div class="label">Subject</div>
+            <input class="preview-field" [(ngModel)]="invoice.subject" name="previewSubject" />
+          </div>
+
+          <div class="cell full">
+            <table class="inspection-table invoice-lines">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let line of invoice.lines; let rowIndex = index; trackBy: trackByIndex">
+                  <td><input class="preview-field" [(ngModel)]="line.description" [name]="'previewDesc' + rowIndex" /></td>
+                  <td><input class="preview-field center-field" [(ngModel)]="line.qty" [name]="'previewQty' + rowIndex" /></td>
+                  <td><input class="preview-field center-field" [(ngModel)]="line.rate" [name]="'previewRate' + rowIndex" /></td>
+                  <td><span class="amount-cell">{{ computeAmount(line) }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="signature-row">
+            <div>
+              <span class="signature-label">Prepared</span>
+              <strong class="seal-field"><input class="preview-field center-field" [(ngModel)]="invoice.preparedBy" name="previewPreparedBy" /></strong>
+            </div>
+            <div>
+              <span class="signature-label">Verified</span>
+              <strong class="seal-field"><input class="preview-field center-field" [(ngModel)]="invoice.verifiedBy" name="previewVerifiedBy" /></strong>
+            </div>
+            <div>
+              <span class="signature-label">Authorized</span>
+              <strong class="seal-field"><input class="preview-field center-field" [(ngModel)]="invoice.authorizedBy" name="previewAuthorizedBy" /></strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+</main>
+
