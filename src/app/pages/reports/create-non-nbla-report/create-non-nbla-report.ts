@@ -860,7 +860,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   dropdownKeyForLabel(label: string): DropdownKey | '' {
-    const normalized = label.replace(' *', '');
+    const normalized = this.normalizeLabel(label).replace(' *', '');
     if (normalized === 'Exposure Technique') return 'exposureTechniques';
     if (normalized === 'Lead Screens') return 'leadScreens';
     if (normalized === 'Test Method') return 'testMethod';
