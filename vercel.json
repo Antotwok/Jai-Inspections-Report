@@ -1,14 +1,13 @@
 {
-  "experimentalServices": {
-    "frontend": {
-      "routePrefix": "/",
-      "framework": "angular"
-    },
-    "backend": {
-      "root": "backend",
-      "routePrefix": "/_/backend",
-      "framework": "node",
-      "entrypoint": "server.js"
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist/jai-report-system" }
     }
-  }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }
