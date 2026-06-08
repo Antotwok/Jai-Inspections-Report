@@ -1,1 +1,12 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global styles and system font stack similar to Roboto */
+html, body {
+	height: 100%;
+}
+
+body {
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* You can add other global styles to this file, and also import other style files */
