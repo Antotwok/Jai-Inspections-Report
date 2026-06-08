@@ -22,6 +22,12 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   </head>
   <body>
+    <script>
+      // Runtime configuration: set `window.__env.API_URL` when deploying.
+      // Default to localhost for local development.
+      window.__env = window.__env || {};
+      window.__env.API_URL = window.__env.API_URL || 'http://localhost:3000';
+    </script>
     <app-root></app-root>
   </body>
 </html>

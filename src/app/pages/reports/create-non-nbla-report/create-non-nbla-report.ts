@@ -14,11 +14,10 @@ interface GenericRtRow {
   description: string;
   thickness: string;
   segment: string;
-  sfd: string;
-  density: string;
-  sensitivity: string;
   filmSize: string;
   observations: string;
+  results: string;
+  filmGroupId?: string;
   fontSize?: number;
 }
 
@@ -74,7 +73,6 @@ interface GenericRtDraft {
   footerFormatNo: string;
   footerFirstIssue: string;
   tableColumnWidths: number[];
-  sfdColumnLabel?: string;
 }
 
 interface PageBoundaryMarker {
@@ -108,21 +106,24 @@ type ConfirmDialogMode = 'update' | 'reset' | 'deleteDraft' | '';
 
 
 const OTHER_OPTION = '__OTHERS__';
-const DEFAULT_TABLE_COLUMN_WIDTHS = [4.3, 27.6, 9.2, 9.2, 9.2, 9.2, 9.2, 9.2, 13.9];
+const DEFAULT_TABLE_COLUMN_WIDTHS = [4.3, 28.6, 11.2, 11.2, 11.2, 11.2, 22.3];
 const MIN_TABLE_COLUMN_WIDTH = 4;
 const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
 const FOCAL_SPOT_OPTION = 'Focal Spot';
+const SFD_OPTION = 'S.F.D';
+const FFD_OPTION = 'F.F.D';
+let nextFilmGroupId = 1;
 
 @Component({
-  selector: 'app-create-generic-report',
+  selector: 'app-create-non-nbla-report',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './create-generic-report.html',
-  styleUrl: './create-generic-report.css'
+  templateUrl: './create-non-nbla-report.html',
+  styleUrl: './create-non-nbla-report.css'
 })
-export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
+export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly otherOption = OTHER_OPTION;
@@ -145,8 +146,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   selectedDraftToLoad = '';
   validationMessage = '';
   tableColumnWidths = [...DEFAULT_TABLE_COLUMN_WIDTHS];
-  readonly tableHeaders = ['Sr.\nNo', 'Description', 'Thick\nness', 'Segment', 'S.F.D', 'Density', 'Sensitivity', 'Film\nSize', 'Observations'];
-  sfdColumnLabel = 'S.F.D';
+  readonly tableHeaders = ['Sr.\nNo', 'Film Identification', 'Thickness', 'Segment', 'Film\nSize', 'Observations', 'Results'];
   upperDetailsFontSize = 10.5;
   lowerDetailsFontSize = 10.5;
   reportNumberDigits = '';
@@ -161,12 +161,6 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
 
   customerFields: ReportField[] = [
     { label: 'Customer Name & Address *', value: '' },
-    { label: 'Principal Customer *', value: '' },
-    { label: 'Work Order No & Date *', value: '' },
-    { label: 'Part Name *', value: '' },
-    { label: 'Part No *', value: '' },
-    { label: 'Heat No *', value: '' },
-    { label: 'Drawing No. *', value: this.settings.defaultValues['Drawing Number'] },
     { label: 'Material', value: 'SG CAST IRON' },
     { label: 'Size & Thickness *', value: '- - -' },
     { label: 'Area Tested *', value: this.dropdownDefault('areaTested') },
@@ -174,16 +168,12 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     { label: 'Exposure Technique', value: this.dropdownDefault('exposureTechniques') },
     { label: 'Test Method *', value: this.dropdownDefault('testMethod') },
     { label: 'Acceptance Std. *', value: this.dropdownDefault('acceptanceStandard') },
-    { label: 'Test Performed by', value: this.dropdownDefault('testPerformedBy') }
+    { label: SFD_OPTION, value: '- - -' }
   ];
 
   reportFields: ReportField[] = [
-    { label: 'URL No', value: '' },
     { label: 'Report No', value: '' },
-    { label: 'Issue Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
-    { label: 'Date of Examination', value: this.formatDisplayDate(this.examinationDatePickerValue) },
-    { label: 'DC No', value: '' },
-    { label: 'Item Receipt Date', value: this.formatDisplayDate(this.itemReceiptDateTimePickerValue) },
+    { label: 'Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
     { label: 'Test Location', value: this.dropdownDefault('testLocation') },
     { label: 'Source', value: this.dropdownDefault('source') },
     { label: 'Source Strength', value: this.settings.defaultValues['Source Strength'] },
@@ -191,8 +181,6 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
     { label: 'Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
     { label: 'Penetrameter', value: this.settings.defaultValues['Penetrameter'] },
-    { label: 'Developing Temp / Time', value: this.settings.defaultValues['Developing Temperature / Time'] },
-    { label: 'Test Carried in Presence of', value: '- - -' }
   ];
 
   pages: GenericRtPage[] = [{ rows: [this.createRow(this.generatedDescription(), '')] }];
@@ -206,10 +194,10 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   reviewedByDesignation = 'Authorized Signatory';
   clientSignature = '';
   inspectingOfficer = '';
-  notes = 'Note : 1. Observation confirms to the above acceptance standard as confirmed by customer\n2. "- -" Denotes details provided by customer\n3. Results are related to Test item only. Any manual corrections will be invalid. The Test report shall not be reproduced\nwithout the written consent from M/s. Jai Inspection Agencies LLP';
+  notes = "";
   footerPageLabel = 'Page';
-  footerFormatNo = 'Format No : JIA / F /010, , REV 01';
-  footerFirstIssue = 'First Issue : 26-11-2025';
+  footerFormatNo = '';
+  footerFirstIssue = '';
 
   get pageCount(): number {
     return this.pages.length;
@@ -305,7 +293,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   addRow(pageIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     const previous = rows.at(-1);
-    rows.push(previous ? { ...previous } : this.createRow(this.generatedDescription(), ''));
+    rows.push(previous ? this.cloneRow(previous) : this.createRow(this.generatedDescription(), ''));
     this.schedulePageBoundaryUpdate();
   }
 
@@ -313,7 +301,57 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     const rows = this.pages[pageIndex].rows;
     if (rows.length === 1) return;
     rows.splice(rowIndex, 1);
+    this.rebalanceFilmGroups(rows);
     this.schedulePageBoundaryUpdate();
+  }
+
+  canCombineRow(pageIndex: number, rowIndex: number): boolean {
+    const rows = this.pages[pageIndex].rows;
+    const current = rows[rowIndex];
+    const next = rows[rowIndex + 1];
+    if (!current || !next) return false;
+    return this.sameRowContext(current, next);
+  }
+
+  combineWithNext(pageIndex: number, rowIndex: number): void {
+    const rows = this.pages[pageIndex].rows;
+    const current = rows[rowIndex];
+    const next = rows[rowIndex + 1];
+    if (!current || !next || !this.sameRowContext(current, next)) return;
+
+    const groupId = current.filmGroupId || next.filmGroupId || this.createFilmGroupId();
+    current.filmGroupId = groupId;
+    next.filmGroupId = groupId;
+    this.schedulePageBoundaryUpdate();
+  }
+
+  filmIdentificationRowspan(pageIndex: number, rowIndex: number): number {
+    const rows = this.pages[pageIndex].rows;
+    const row = rows[rowIndex];
+    if (!row) return 1;
+
+    const groupId = row.filmGroupId;
+    if (!groupId) return 1;
+    if (rowIndex > 0 && rows[rowIndex - 1]?.filmGroupId === groupId) return 0;
+
+    let span = 1;
+    for (let i = rowIndex + 1; i < rows.length; i++) {
+      if (rows[i]?.filmGroupId !== groupId) break;
+      span += 1;
+    }
+    return span;
+  }
+
+  rowGroupRowspan(pageIndex: number, rowIndex: number): number {
+    return this.filmIdentificationRowspan(pageIndex, rowIndex);
+  }
+
+  showSerialCell(pageIndex: number, rowIndex: number): boolean {
+    return this.showFilmIdentificationCell(pageIndex, rowIndex);
+  }
+
+  showFilmIdentificationCell(pageIndex: number, rowIndex: number): boolean {
+    return this.filmIdentificationRowspan(pageIndex, rowIndex) !== 0;
   }
 
   printReport(): void {
@@ -583,18 +621,10 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     this.footerFormatNo = draft.footerFormatNo ?? this.footerFormatNo;
     this.footerFirstIssue = draft.footerFirstIssue ?? this.footerFirstIssue;
     this.tableColumnWidths = this.normalizeTableColumnWidths(draft.tableColumnWidths);
-    this.sfdColumnLabel = draft.sfdColumnLabel === 'F.F.D' ? 'F.F.D' : 'S.F.D';
     this.upperDetailsFontSize = this.normalizeFontSize(draft.upperDetailsFontSize, 10.5);
     this.lowerDetailsFontSize = this.normalizeFontSize(draft.lowerDetailsFontSize, 10.5);
     this.hydrateReportNumber();
     this.issueDatePickerValue = this.parseDisplayDate(this.fieldValue('Issue Date')) || this.todayIso();
-    this.examinationDatePickerValue = this.parseDisplayDate(this.fieldValue('Date of Examination')) || this.todayIso();
-    this.itemReceiptDateTimePickerValue =
-      draft.itemReceiptDateTimePickerValue?.slice(0, 10) ||
-      this.parseDisplayDate(this.fieldValue('Item Receipt Date')) ||
-      this.parseDisplayDateTime(this.fieldValue('Item Receipt Date')).slice(0, 10) ||
-      this.todayIso();
-    this.updateDate('Item Receipt Date', this.itemReceiptDateTimePickerValue);
     this.otherFieldLabels.clear();
   }
 
@@ -618,7 +648,6 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   dropdownKeyForLabel(label: string): DropdownKey | '' {
     const normalized = label.replace(' *', '');
     if (normalized === 'Exposure Technique') return 'exposureTechniques';
-    if (normalized === 'Test Performed by') return 'testPerformedBy';
     if (normalized === 'Lead Screens') return 'leadScreens';
     if (normalized === 'Test Method') return 'testMethod';
     if (normalized === 'Acceptance Std.') return 'acceptanceStandard';
@@ -648,6 +677,15 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     this.schedulePageBoundaryUpdate();
   }
 
+  isSfdSelectorLabel(label: string): boolean {
+    return [SFD_OPTION, FFD_OPTION].includes(label);
+  }
+
+  onSfdModeChange(field: ReportField, value: string): void {
+    field.label = value;
+    this.schedulePageBoundaryUpdate();
+  }
+
   private normalizeSelectableReportFields(): void {
     this.reportFields.forEach((field) => {
       if (field.label === 'Exposure Time / KV & Ma') {
@@ -664,8 +702,6 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   getFieldControlType(label: string): string {
     if (label === 'Report No') return 'reportNumber';
     if (label === 'Issue Date') return 'issueDate';
-    if (label === 'Date of Examination') return 'examinationDate';
-    if (label === 'Item Receipt Date') return 'itemReceiptDate';
     if (this.dropdownKeyForLabel(label)) return 'dropdown';
     return 'textarea';
   }
@@ -705,7 +741,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     this.setFieldValue('Report No', digits ? `JIA / RT-${digits}` : '');
   }
 
-  updateDate(label: 'Issue Date' | 'Date of Examination' | 'Item Receipt Date', isoDate: string): void {
+  updateDate(label: 'Issue Date', isoDate: string): void {
     this.setFieldValue(label, this.formatDisplayDate(isoDate));
     this.schedulePageBoundaryUpdate();
   }
@@ -716,6 +752,22 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
 
   rowFontSize(row: GenericRtRow): string {
     return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize)}px`;
+  }
+
+  filmIdentificationRows(row: GenericRtRow): number {
+    return Math.max(2, Math.ceil(this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) / 3));
+  }
+
+  observationRows(row: GenericRtRow): number {
+    return Math.max(2, Math.ceil(this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) / 4));
+  }
+
+  filmIdentificationMinHeight(row: GenericRtRow): string {
+    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) * 1.4}mm`;
+  }
+
+  observationMinHeight(row: GenericRtRow): string {
+    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) * 1.15}mm`;
   }
 
   updateFieldFontSize(field: ReportField, value: number | string, fallback: number): void {
@@ -787,7 +839,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   }
 
   tableHeaderLabel(header: string): string {
-    return header === 'S.F.D' ? this.sfdColumnLabel : header;
+    return header;
   }
 
   startColumnResize(event: MouseEvent, index: number): void {
@@ -900,8 +952,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
-      tableColumnWidths: this.tableColumnWidths,
-      sfdColumnLabel: this.sfdColumnLabel
+      tableColumnWidths: this.tableColumnWidths
     };
   }
 
@@ -942,12 +993,43 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
       description,
       thickness: 'Multiple',
       segment,
-      sfd: '20"',
-      density: '2 -3.5',
-      sensitivity: '2%',
       filmSize: '4 x 12"',
-      observations: 'N S D\nN S D'
+      observations: 'N S D',
+      results: 'Accepted'
     };
+  }
+
+  private cloneRow(row: GenericRtRow): GenericRtRow {
+    return { ...row, filmGroupId: undefined };
+  }
+
+  private sameRowContext(a: GenericRtRow, b: GenericRtRow): boolean {
+    return (
+      a.thickness === b.thickness &&
+      a.segment === b.segment &&
+      a.filmSize === b.filmSize &&
+      a.observations === b.observations &&
+      a.results === b.results
+    );
+  }
+
+  private createFilmGroupId(): string {
+    return `film-group-${nextFilmGroupId++}`;
+  }
+
+  private rebalanceFilmGroups(rows: GenericRtRow[]): void {
+    const groupedRows = rows.filter((row) => row.filmGroupId);
+    if (!groupedRows.length) return;
+
+    const seen = new Set<string>();
+    groupedRows.forEach((row) => {
+      if (!row.filmGroupId || seen.has(row.filmGroupId)) return;
+      seen.add(row.filmGroupId);
+      const members = rows.filter((candidate) => candidate.filmGroupId === row.filmGroupId);
+      if (members.length < 2) {
+        members.forEach((member) => delete member.filmGroupId);
+      }
+    });
   }
 
   private defaultSettings(): GenericRtSettings {
@@ -1004,7 +1086,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
           defaultValue: 'M Samson (Radiographer)'
         },
         reviewedBy: {
-          label: 'Reviewed & Authorized By',
+          label: 'Reviewed By',
           options: ['Authorized Signatory', 'M Samson', 'Ganeshan', 'Rajendran'],
           defaultValue: 'Authorized Signatory'
         }
@@ -1077,11 +1159,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   }
 
   private generatedDescription(): string {
-    return [
-      this.fieldValue('Part Name *'),
-      `P. NO. ${this.fieldValue('Part No *')}`,
-      `H. NO. ${this.fieldValue('Heat No *')}`
-    ].join('\n').trim();
+    return this.fieldValue('Customer Name & Address *').trim();
   }
 
   private refreshGeneratedDescriptions(): void {
@@ -1106,20 +1184,11 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   private validateReport(): boolean {
     const requiredFields = [
       'Customer Name & Address *',
-      'Principal Customer *',
-      'Work Order No & Date *',
-      'Part Name *',
-      'Part No *',
-      'Heat No *',
-      'Drawing No. *',
       'Size & Thickness *',
       'Area Tested *',
       'Test Method *',
       'Acceptance Std. *',
-      'URL No',
       'Issue Date',
-      'Date of Examination',
-      'DC No',
       'Test Location'
     ];
 
@@ -1140,19 +1209,16 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
 
   private applyDefaultValuesToBlankFields(): void {
     const defaultMap = new Map<string, string>([
-      ['Drawing No. *', this.settings.defaultValues['Drawing Number']],
       ['Test Location', this.dropdownDefault('testLocation')],
       ['Source', this.dropdownDefault('source')],
       ['Source Strength', this.settings.defaultValues['Source Strength']],
       ['Film Class & Brand', this.settings.defaultValues['Film Class & Brand']],
       ['Penetrameter', this.settings.defaultValues['Penetrameter']],
-      ['Developing Temp / Time', this.settings.defaultValues['Developing Temperature / Time']],
       ['Lead Screens', this.dropdownDefault('leadScreens')],
       ['Test Method *', this.dropdownDefault('testMethod')],
       ['Acceptance Std. *', this.dropdownDefault('acceptanceStandard')],
       ['Area Tested *', this.dropdownDefault('areaTested')],
-      ['Exposure Technique', this.dropdownDefault('exposureTechniques')],
-      ['Test Performed by', this.dropdownDefault('testPerformedBy')]
+      ['Exposure Technique', this.dropdownDefault('exposureTechniques')]
     ]);
 
     defaultMap.forEach((value, label) => {

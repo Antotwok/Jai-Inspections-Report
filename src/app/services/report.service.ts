@@ -6,7 +6,8 @@ import { HttpClient } from '@angular/common/http';
 })
 export class ReportService {
 
-  api = 'http://localhost:3000';
+  // Read runtime API URL injected in `index.html` or fall back to localhost
+  api = (window as any).__env?.API_URL || 'http://localhost:3000';
 
   constructor(private http: HttpClient) {}
 
