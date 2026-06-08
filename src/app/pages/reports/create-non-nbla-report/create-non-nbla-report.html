@@ -290,6 +290,10 @@
             </ng-container>
             <span class="empty-detail" *ngIf="!pair.report"></span>
           </div>
+          <div class="remarks-detail-row">
+            <label>Remarks</label>
+            <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
+          </div>
         </section>
       </ng-container>
 
@@ -390,11 +394,6 @@
       <div class="table-extension" aria-hidden="true"></div>
 
       <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
-        <label class="remarks-line">
-          <span>Remarks :</span>
-          <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
-        </label>
-
         <div class="abbreviation-row">
           <strong>ABBREVIATION :</strong>
           <textarea [(ngModel)]="abbreviationLeft" name="abbreviationLeft" rows="1"></textarea>

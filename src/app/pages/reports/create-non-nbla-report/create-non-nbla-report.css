@@ -471,6 +471,26 @@ button:disabled {
   background: #fafbfa;
 }
 
+.remarks-detail-row {
+  display: grid;
+  grid-template-columns: 38mm minmax(0, 1fr);
+  min-height: 5.5mm;
+  border-bottom: 1px solid #333;
+}
+
+.remarks-detail-row label {
+  border-right: 1px solid #333;
+  font-weight: 700;
+  padding: 1mm 1.6mm;
+  letter-spacing: .01em;
+  background: #fafbfa;
+}
+
+.remarks-detail-row textarea {
+  min-height: 5.5mm;
+  text-align: left;
+}
+
 /* ── Inputs inside the A4 preview ── */
 input,
 textarea,
@@ -597,6 +617,7 @@ select:focus {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+  border-bottom: 1px solid #333;
   font-size: var(--lower-details-font-size, 10.5px);
 }
 
@@ -753,7 +774,6 @@ select:focus {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  border-bottom: 1px solid #333333;
   font-weight: 700;
   gap: 1mm;
   padding: .8mm 2mm;
@@ -761,10 +781,20 @@ select:focus {
   page-break-inside: avoid;
 }
 
+.remarks-table-row td {
+  padding: 0;
+}
+
+.remarks-line--table {
+  border-bottom: 1px solid #333333;
+  width: 100%;
+}
+
 .remarks-line textarea {
   font-weight: 400;
   min-height: 4.5mm;
   padding: 0;
+  text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
