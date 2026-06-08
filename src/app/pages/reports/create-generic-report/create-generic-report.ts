@@ -695,14 +695,19 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   }
 
   onReportDigitsChange(value: string): void {
-    this.reportNumberDigits = value.replace(/\D/g, '');
+    const prefix = 'JIA / RT-';
+    this.reportNumberDigits = value.startsWith(prefix) ? value.slice(prefix.length) : value;
     this.updateReportNumber();
   }
 
   updateReportNumber(): void {
-    const digits = this.reportNumberDigits.replace(/\D/g, '');
-    this.reportNumberDigits = digits;
-    this.setFieldValue('Report No', digits ? `JIA / RT-${digits}` : '');
+    const prefix = 'JIA / RT-';
+    let value = this.reportNumberDigits || '';
+    if (value.startsWith(prefix)) {
+      value = value.slice(prefix.length);
+    }
+    this.reportNumberDigits = value;
+    this.setFieldValue('Report No', value ? `${prefix}${value}` : '');
   }
 
   updateDate(label: 'Issue Date' | 'Date of Examination' | 'Item Receipt Date', isoDate: string): void {
@@ -1098,8 +1103,9 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
 
   private hydrateReportNumber(): void {
     const reportNumber = this.fieldValue('Report No');
-    const match = /(\d+)$/.exec(reportNumber);
-    this.reportNumberDigits = this.reportNumberDigits || match?.[1] || '';
+    const prefix = 'JIA / RT-';
+    const value = reportNumber.startsWith(prefix) ? reportNumber.slice(prefix.length) : reportNumber;
+    this.reportNumberDigits = this.reportNumberDigits || value || '';
     this.updateReportNumber();
   }
 
@@ -1123,8 +1129,9 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
       'Test Location'
     ];
 
-    if (!/^\d+$/.test(this.reportNumberDigits.trim())) {
-      this.validationMessage = 'Enter a valid numeric report number before saving.';
+    const reportNumber = this.fieldValue('Report No').trim();
+    if (!reportNumber) {
+      this.validationMessage = 'Enter a valid report number before saving.';
       return false;
     }
 

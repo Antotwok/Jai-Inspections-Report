@@ -10,6 +10,8 @@
   <section class="page-controls" aria-label="Page controls">
     <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
     <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
+    <button type="button" [disabled]="!canUndo" (click)="undo()">Undo</button>
+    <button type="button" [disabled]="!canRedo" (click)="redo()">Redo</button>
     <button type="button" (click)="addPage()">Add Page</button>
     <button type="button" (click)="openSaveDialog()">Save</button>
     <button type="button" (click)="openLoadDialog()">Load</button>
@@ -234,15 +236,13 @@
                 *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'; else reportDateOrText"
                 [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
               >
-                <span class="report-prefix">JIA / RT-</span>
+                <span class="report-prefix">JIA /</span>
                 <input
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]*"
-                  [ngModel]="reportNumberDigits"
-                  name="reportNumberDigits"
-                  (ngModelChange)="onReportDigitsChange($event)"
-                />
+  type="text"
+  [ngModel]="reportNumberDigits"
+  name="reportNumberDigits"
+  (ngModelChange)="onReportDigitsChange($event)"
+/>
               </div>
               <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
 
@@ -306,7 +306,7 @@
         <section class="continuation-summary">
           <div>
             <strong>Company Name & Address</strong>
-            <span>{{ fieldValue('Customer Name & Address *') }}</span>
+            <span>{{ companyNameAndAddress }}</span>
           </div>
           <div>
             <strong>Report No</strong>
@@ -423,7 +423,7 @@
             </span>
           </div>
           <div>
-            <strong>Reviewed & Authorized By</strong>
+            <strong>Reviewed By</strong>
             <span class="signature-person">
               <select [(ngModel)]="reviewedBy" name="reviewedBy">
                 <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
@@ -433,10 +433,6 @@
           <div>
             <strong>for Client</strong>
             <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
-          </div>
-          <div>
-            <strong>for Inspecting Officer</strong>
-            <textarea [(ngModel)]="inspectingOfficer" name="inspectingOfficer" rows="5"></textarea>
           </div>
         </section>
 

@@ -76,6 +76,33 @@ interface GenericRtDraft {
   tableColumnWidths: number[];
 }
 
+interface GenericRtHistoryState {
+  customerFields: ReportField[];
+  reportFields: ReportField[];
+  pages: GenericRtPage[];
+  reportNumberDigits: string;
+  issueDatePickerValue: string;
+  examinationDatePickerValue: string;
+  itemReceiptDateTimePickerValue: string;
+  upperDetailsFontSize: number;
+  lowerTableScale: number;
+  lowerDetailsFontSize: number;
+  remarks: string;
+  abbreviationLeft: string;
+  abbreviationRight: string;
+  evaluatedBy: string;
+  evaluatedByDesignation: string;
+  reviewedBy: string;
+  reviewedByDesignation: string;
+  clientSignature: string;
+  inspectingOfficer: string;
+  notes: string;
+  footerPageLabel: string;
+  footerFormatNo: string;
+  footerFirstIssue: string;
+  tableColumnWidths: number[];
+}
+
 interface PageBoundaryMarker {
   top: number;
   pageNumber: number;
@@ -137,6 +164,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   private boundaryFrameId = 0;
   private lastGeneratedDescription = '';
   private otherFieldLabels = new Set<string>();
+  private undoStack: GenericRtHistoryState[] = [];
+  private redoStack: GenericRtHistoryState[] = [];
+  private suppressHistoryCapture = false;
 
   showPageBoundaries = true;
   pageBoundaryStates: PageBoundaryState[] = [];
@@ -162,27 +192,27 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
 
 
   customerFields: ReportField[] = [
-    { label: 'Customer Name & Address *', value: '' },
-    { label: 'Material', value: 'SG CAST IRON' },
-    { label: 'Size & Thickness *', value: '- - -' },
-    { label: 'Area Tested *', value: this.dropdownDefault('areaTested') },
-    { label: 'Lead Screens', value: this.dropdownDefault('leadScreens') },
-    { label: 'Exposure Technique', value: this.dropdownDefault('exposureTechniques') },
-    { label: 'Test Method *', value: this.dropdownDefault('testMethod') },
-    { label: 'Acceptance Std. *', value: this.dropdownDefault('acceptanceStandard') },
-    { label: SFD_OPTION, value: '- - -' }
+    { label: '\u00A0Customer Name & \u00A0Address *', value: '' },
+    { label: '\u00A0Material', value: 'SG CAST IRON' },
+    { label: '\u00A0Size & Thickness *', value: '' },
+    { label: '\u00A0Area Tested *', value: this.dropdownDefault('areaTested') },
+    { label: '\u00A0Lead Screens', value: this.dropdownDefault('leadScreens') },
+    { label: '\u00A0Exposure Technique', value: this.dropdownDefault('exposureTechniques') },
+    { label: '\u00A0Test Method *', value: this.dropdownDefault('testMethod') },
+    { label: '\u00A0Acceptance Std. *', value: this.dropdownDefault('acceptanceStandard') },
+    { label: SFD_OPTION, value: '' }
   ];
 
   reportFields: ReportField[] = [
-    { label: 'Report No', value: '' },
-    { label: 'Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
-    { label: 'Test Location', value: this.dropdownDefault('testLocation') },
-    { label: 'Source', value: this.dropdownDefault('source') },
-    { label: 'Source Strength', value: this.settings.defaultValues['Source Strength'] },
+    { label: '\u00A0Report No', value: '' },
+    { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+    { label: '\u00A0Test Location', value: this.dropdownDefault('testLocation') },
+    { label: '\u00A0Source', value: this.dropdownDefault('source') },
+    { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
     { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
     { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
-    { label: 'Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
-    { label: 'Penetrameter', value: this.settings.defaultValues['Penetrameter'] },
+    { label: '\u00A0Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
+    { label: '\u00A0Penetrameter', value: this.settings.defaultValues['Penetrameter'] },
   ];
 
   pages: GenericRtPage[] = [{ rows: [this.createRow(this.generatedDescription(), '')] }];
@@ -211,6 +241,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
       customer: this.customerFields[index],
       report: this.reportFields[index]
     }));
+  }
+
+  get companyNameAndAddress(): string {
+    return this.customerFields[0]?.value?.trim() ?? '';
   }
 
   get dropdownEntries(): Array<{ key: string; setting: DropdownSetting }> {
@@ -259,6 +293,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     return this.showPageBoundaries && this.pageBoundaryStates.some((state) => state.hasOverflow);
   }
 
+  get canUndo(): boolean {
+    return this.undoStack.length > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
   ngAfterViewInit(): void {
     this.observeReportPages();
     this.reportPageElements.changes.subscribe(() => {
@@ -271,6 +313,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   @HostListener('input')
   @HostListener('change')
   onReportContentChanged(): void {
+    this.captureHistory();
     this.schedulePageBoundaryUpdate();
   }
 
@@ -282,28 +325,38 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   addPage(): void {
-    this.pages.push({ rows: [this.createRow(this.generatedDescription(), '')] });
+    this.captureHistory();
+    const lastPage = this.pages.at(-1);
+    const lastRow = lastPage?.rows.at(-1);
+    this.pages.push({ rows: [lastRow ? this.cloneRow(lastRow) : this.createRow(this.generatedDescription(), '')] });
+    this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
   removePage(index: number): void {
     if (this.pages.length === 1) return;
+    this.captureHistory();
     this.pages.splice(index, 1);
+    this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
   addRow(pageIndex: number): void {
+    this.captureHistory();
     const rows = this.pages[pageIndex].rows;
     const previous = rows.at(-1);
     rows.push(previous ? this.cloneRow(previous) : this.createRow(this.generatedDescription(), ''));
+    this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
   removeRow(pageIndex: number, rowIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     if (rows.length === 1) return;
+    this.captureHistory();
     rows.splice(rowIndex, 1);
     this.rebalanceFilmGroups(rows);
+    this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
@@ -322,8 +375,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     if (!current || !next || !this.sameRowContext(current, next)) return;
 
     const groupId = current.filmGroupId || next.filmGroupId || this.createFilmGroupId();
+    this.captureHistory();
     current.filmGroupId = groupId;
     next.filmGroupId = groupId;
+    this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
@@ -340,9 +395,29 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     if (!row?.filmGroupId) return;
 
     const groupId = row.filmGroupId;
+    this.captureHistory();
     rows
       .filter((candidate) => candidate.filmGroupId === groupId)
       .forEach((candidate) => delete candidate.filmGroupId);
+    this.clearRedoStack();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  undo(): void {
+    const snapshot = this.undoStack.pop();
+    if (!snapshot) return;
+
+    this.redoStack.push(this.captureHistoryState());
+    this.restoreHistoryState(snapshot);
+    this.schedulePageBoundaryUpdate();
+  }
+
+  redo(): void {
+    const snapshot = this.redoStack.pop();
+    if (!snapshot) return;
+
+    this.undoStack.push(this.captureHistoryState());
+    this.restoreHistoryState(snapshot);
     this.schedulePageBoundaryUpdate();
   }
 
@@ -623,6 +698,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   private applyDraft(draft: Partial<GenericRtDraft>): void {
+    this.suppressHistoryCapture = true;
     this.customerFields = draft.customerFields ?? this.customerFields;
     this.reportFields = draft.reportFields ?? this.reportFields;
     this.normalizeSelectableReportFields();
@@ -648,6 +724,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     this.hydrateReportNumber();
     this.issueDatePickerValue = this.parseDisplayDate(this.fieldValue('Issue Date')) || this.todayIso();
     this.otherFieldLabels.clear();
+    this.suppressHistoryCapture = false;
+    this.resetHistory();
   }
 
   resetDraft(): void {
@@ -657,6 +735,85 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   private performReset(): void {
     localStorage.removeItem(this.storageKey);
     window.location.reload();
+  }
+
+  private captureHistory(): void {
+    if (this.suppressHistoryCapture) return;
+    const snapshot = this.captureHistoryState();
+    const last = this.undoStack.at(-1);
+    if (last && JSON.stringify(last) === JSON.stringify(snapshot)) return;
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > 50) {
+      this.undoStack.shift();
+    }
+  }
+
+  private captureHistoryState(): GenericRtHistoryState {
+    return {
+      customerFields: structuredClone(this.customerFields),
+      reportFields: structuredClone(this.reportFields),
+      pages: structuredClone(this.pages),
+      reportNumberDigits: this.reportNumberDigits,
+      issueDatePickerValue: this.issueDatePickerValue,
+      examinationDatePickerValue: this.examinationDatePickerValue,
+      itemReceiptDateTimePickerValue: this.itemReceiptDateTimePickerValue,
+      upperDetailsFontSize: this.upperDetailsFontSize,
+      lowerTableScale: this.lowerTableScale,
+      lowerDetailsFontSize: this.lowerDetailsFontSize,
+      remarks: this.remarks,
+      abbreviationLeft: this.abbreviationLeft,
+      abbreviationRight: this.abbreviationRight,
+      evaluatedBy: this.evaluatedBy,
+      evaluatedByDesignation: this.evaluatedByDesignation,
+      reviewedBy: this.reviewedBy,
+      reviewedByDesignation: this.reviewedByDesignation,
+      clientSignature: this.clientSignature,
+      inspectingOfficer: this.inspectingOfficer,
+      notes: this.notes,
+      footerPageLabel: this.footerPageLabel,
+      footerFormatNo: this.footerFormatNo,
+      footerFirstIssue: this.footerFirstIssue,
+      tableColumnWidths: [...this.tableColumnWidths]
+    };
+  }
+
+  private restoreHistoryState(snapshot: GenericRtHistoryState): void {
+    this.suppressHistoryCapture = true;
+    this.customerFields = structuredClone(snapshot.customerFields);
+    this.reportFields = structuredClone(snapshot.reportFields);
+    this.pages = structuredClone(snapshot.pages);
+    this.reportNumberDigits = snapshot.reportNumberDigits;
+    this.issueDatePickerValue = snapshot.issueDatePickerValue;
+    this.examinationDatePickerValue = snapshot.examinationDatePickerValue;
+    this.itemReceiptDateTimePickerValue = snapshot.itemReceiptDateTimePickerValue;
+    this.upperDetailsFontSize = snapshot.upperDetailsFontSize;
+    this.lowerTableScale = snapshot.lowerTableScale;
+    this.lowerDetailsFontSize = snapshot.lowerDetailsFontSize;
+    this.remarks = snapshot.remarks;
+    this.abbreviationLeft = snapshot.abbreviationLeft;
+    this.abbreviationRight = snapshot.abbreviationRight;
+    this.evaluatedBy = snapshot.evaluatedBy;
+    this.evaluatedByDesignation = snapshot.evaluatedByDesignation;
+    this.reviewedBy = snapshot.reviewedBy;
+    this.reviewedByDesignation = snapshot.reviewedByDesignation;
+    this.clientSignature = snapshot.clientSignature;
+    this.inspectingOfficer = snapshot.inspectingOfficer;
+    this.notes = snapshot.notes;
+    this.footerPageLabel = snapshot.footerPageLabel;
+    this.footerFormatNo = snapshot.footerFormatNo;
+    this.footerFirstIssue = snapshot.footerFirstIssue;
+    this.tableColumnWidths = [...snapshot.tableColumnWidths];
+    this.otherFieldLabels.clear();
+    this.suppressHistoryCapture = false;
+  }
+
+  private resetHistory(): void {
+    this.undoStack = [];
+    this.redoStack = [];
+  }
+
+  private clearRedoStack(): void {
+    this.redoStack = [];
   }
 
   isLastPage(index: number): boolean {
@@ -734,14 +891,17 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   onDropdownSelection(field: ReportField, key: string, value: string): void {
+    this.captureHistory();
     if (value === OTHER_OPTION) {
       this.otherFieldLabels.add(field.label);
       field.value = this.isOtherSelected(key, field.value) ? field.value : '';
+      this.clearRedoStack();
       return;
     }
 
     this.otherFieldLabels.delete(field.label);
     field.value = value;
+    this.clearRedoStack();
   }
 
   isOtherSelected(key: string, value: string): boolean {
@@ -753,18 +913,27 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   onReportDigitsChange(value: string): void {
-    this.reportNumberDigits = value.replace(/\D/g, '');
+    this.captureHistory();
+    const prefix = 'JIA / ';
+    this.reportNumberDigits = value.startsWith(prefix) ? value.slice(prefix.length) : value;
     this.updateReportNumber();
+    this.clearRedoStack();
   }
 
   updateReportNumber(): void {
-    const digits = this.reportNumberDigits.replace(/\D/g, '');
-    this.reportNumberDigits = digits;
-    this.setFieldValue('Report No', digits ? `JAI / RT-${digits}` : '');
+    const prefix = 'JIA / ';
+    let value = this.reportNumberDigits || '';
+    if (value.startsWith(prefix)) {
+      value = value.slice(prefix.length);
+    }
+    this.reportNumberDigits = value;
+    this.setFieldValue('Report No', `${prefix}${value}`.trim());
   }
 
-  updateDate(label: 'Issue Date', isoDate: string): void {
-    this.setFieldValue(label, this.formatDisplayDate(isoDate));
+  updateDate(_label: 'Issue Date', isoDate: string): void {
+    this.captureHistory();
+    this.setFieldValue('Report Date', this.formatDisplayDate(isoDate));
+    this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
@@ -810,7 +979,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   onDetailChanged(label: string): void {
-    if (['Part Name *', 'Part No *', 'Heat No *'].includes(label)) {
+    const normalizedLabel = this.normalizeLabel(label);
+    if (['Part Name *', 'Part No *', 'Heat No *', 'Customer Name & Address *'].includes(normalizedLabel)) {
       this.refreshGeneratedDescriptions();
     }
     this.schedulePageBoundaryUpdate();
@@ -854,7 +1024,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   fieldValue(label: string): string {
-    return [...this.customerFields, ...this.reportFields].find((field) => field.label === label)?.value ?? '';
+    const normalizedLabel = this.normalizeLabel(label);
+    return [...this.customerFields, ...this.reportFields].find((field) => this.normalizeLabel(field.label) === normalizedLabel)?.value ?? '';
   }
 
   serialNumber(pageIndex: number, rowIndex: number): number {
@@ -1027,7 +1198,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
 
   private pdfFileName(): string {
     const reportNumber = this.fieldValue('Report No') || 'RT Report';
-    const date = this.fieldValue('Issue Date') || this.formatDisplayDate(this.todayIso());
+    const date = this.fieldValue('Report Date') || this.formatDisplayDate(this.todayIso());
     return `${reportNumber} ${date}`.replace(/[<>:"/\\|?*]+/g, '-').replace(/\s+/g, ' ').trim();
   }
 
@@ -1036,7 +1207,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
       description,
       thickness: 'Multiple',
       segment,
-      filmSize: '4 x 12"',
+      filmSize: '4" x 12"',
       observations: 'N S D',
       results: 'Accepted'
     };
@@ -1080,7 +1251,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
       dropdowns: {
         reportPrefixes: {
           label: 'Report Prefixes',
-          options: ['JAI / RT', 'JAI / UT', 'JAI / MT', 'JAI / PT'],
+          options: ['JIA / RT', 'JIA / UT', 'JIA / MT', 'JIA / PT'],
           defaultValue: ''
         },
         exposureTechniques: {
@@ -1172,8 +1343,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   private setFieldValue(label: string, value: string): void {
-    const field = [...this.customerFields, ...this.reportFields].find((reportField) => reportField.label === label);
+    const normalizedLabel = this.normalizeLabel(label);
+    const field = [...this.customerFields, ...this.reportFields].find((reportField) => this.normalizeLabel(reportField.label) === normalizedLabel);
     if (field) field.value = value;
+  }
+
+  private normalizeLabel(label: string): string {
+    return label.replace(/\u00A0/g, ' ').trim();
   }
 
   private todayIso(): string {
@@ -1202,7 +1378,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   private generatedDescription(): string {
-    return this.fieldValue('Customer Name & Address *').trim();
+    return this.companyNameAndAddress;
   }
 
   private refreshGeneratedDescriptions(): void {
@@ -1219,8 +1395,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
 
   private hydrateReportNumber(): void {
     const reportNumber = this.fieldValue('Report No');
-    const match = /(\d+)$/.exec(reportNumber);
-    this.reportNumberDigits = this.reportNumberDigits || match?.[1] || '';
+    const prefix = 'JIA / RT-';
+    const value = reportNumber.startsWith(prefix) ? reportNumber.slice(prefix.length) : reportNumber;
+    this.reportNumberDigits = this.reportNumberDigits || value || '';
     this.updateReportNumber();
   }
 
@@ -1231,12 +1408,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
       'Area Tested *',
       'Test Method *',
       'Acceptance Std. *',
-      'Issue Date',
+      'Report Date',
       'Test Location'
     ];
 
-    if (!/^\d+$/.test(this.reportNumberDigits.trim())) {
-      this.validationMessage = 'Enter a valid numeric report number before saving.';
+    const reportNumber = this.fieldValue('Report No').trim();
+    if (!reportNumber) {
+      this.validationMessage = 'Enter a valid report number before saving.';
       return false;
     }
 

@@ -827,8 +827,8 @@ select:focus {
 /* ── Signature grid ── */
 .signature-grid {
   display: grid;
-  grid-template-columns: 1.25fr 1.55fr .75fr .8fr;
-  min-height: 38mm;
+  grid-template-columns: 1fr 1fr 1.75fr;
+  min-height: 30mm;
 }
 
 .signature-grid div {
