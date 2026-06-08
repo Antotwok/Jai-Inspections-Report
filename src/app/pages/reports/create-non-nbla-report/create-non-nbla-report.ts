@@ -327,8 +327,26 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   addPage(): void {
     this.captureHistory();
     const lastPage = this.pages.at(-1);
-    const lastRow = lastPage?.rows.at(-1);
-    this.pages.push({ rows: [lastRow ? this.cloneRow(lastRow) : this.createRow(this.generatedDescription(), '')] });
+    const lastRows = lastPage?.rows ?? [];
+    const previousVisibleIndex = this.previousVisibleRowIndex(lastRows);
+    const lastRow = previousVisibleIndex >= 0 ? lastRows[previousVisibleIndex] : undefined;
+
+    if (lastRow) {
+      const previousSpan = this.filmIdentificationRowspan(this.pages.length - 1, previousVisibleIndex);
+      const span = Math.max(1, previousSpan);
+      const newGroupId = span > 1 ? this.createFilmGroupId() : undefined;
+      const clonedRows = Array.from({ length: span }, () => this.cloneRow(lastRow));
+
+      if (newGroupId) {
+        clonedRows.forEach((row) => {
+          row.filmGroupId = newGroupId;
+        });
+      }
+
+      this.pages.push({ rows: clonedRows });
+    } else {
+      this.pages.push({ rows: [this.createRow(this.generatedDescription(), '')] });
+    }
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -344,8 +362,25 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   addRow(pageIndex: number): void {
     this.captureHistory();
     const rows = this.pages[pageIndex].rows;
-    const previous = rows.at(-1);
-    rows.push(previous ? this.cloneRow(previous) : this.createRow(this.generatedDescription(), ''));
+    const previousVisibleIndex = this.previousVisibleRowIndex(rows);
+    const previous = previousVisibleIndex >= 0 ? rows[previousVisibleIndex] : undefined;
+
+    if (previous) {
+      const previousSpan = this.filmIdentificationRowspan(pageIndex, previousVisibleIndex);
+      const span = Math.max(1, previousSpan);
+      const newGroupId = span > 1 ? this.createFilmGroupId() : undefined;
+      const clonedRows = Array.from({ length: span }, () => this.cloneRow(previous));
+
+      if (newGroupId) {
+        clonedRows.forEach((row) => {
+          row.filmGroupId = newGroupId;
+        });
+      }
+
+      rows.push(...clonedRows);
+    } else {
+      rows.push(this.createRow(this.generatedDescription(), ''));
+    }
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -1042,6 +1077,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     }, 0);
   }
 
+  private previousVisibleRowIndex(rows: GenericRtRow[]): number {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (!rows[i]?.filmGroupId) return i;
+      if (i === 0 || rows[i - 1]?.filmGroupId !== rows[i].filmGroupId) return i;
+    }
+    return -1;
+  }
+
   tableColumnWidth(index: number): string {
     return `${this.tableColumnWidths[index]}%`;
   }
@@ -1214,7 +1257,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   private cloneRow(row: GenericRtRow): GenericRtRow {
-    return { ...row, filmGroupId: undefined };
+    return { ...row };
   }
 
   private sameRowContext(a: GenericRtRow, b: GenericRtRow): boolean {
