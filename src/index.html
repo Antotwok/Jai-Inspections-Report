@@ -11,9 +11,9 @@
   </head>
   <body>
     <script>
-      // Runtime configuration: set `window.__env.API_URL` to your deployed backend.
+      // Runtime configuration: use the Vercel backend route in the same project.
       window.__env = window.__env || {};
-      window.__env.API_URL = 'https://jai-inspections-backend.onrender.com';
+      window.__env.API_URL = window.__env.API_URL || '/_/backend';
     </script>
     <app-root></app-root>
   </body>
