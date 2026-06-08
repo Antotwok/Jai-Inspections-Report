@@ -11,9 +11,9 @@
   </head>
   <body>
     <script>
-      // Runtime configuration: always use the Render backend service.
+      // Runtime configuration: use the Vercel backend service route.
       window.__env = window.__env || {};
-      window.__env.API_URL = 'https://jai-inspections-backend.onrender.com';
+      window.__env.API_URL = '/_/backend';
     </script>
     <app-root></app-root>
   </body>
