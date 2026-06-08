@@ -58,6 +58,7 @@ interface GenericRtDraft {
   examinationDatePickerValue: string;
   itemReceiptDateTimePickerValue: string;
   upperDetailsFontSize: number;
+  lowerTableScale: number;
   lowerDetailsFontSize: number;
   remarks: string;
   abbreviationLeft: string;
@@ -148,6 +149,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   tableColumnWidths = [...DEFAULT_TABLE_COLUMN_WIDTHS];
   readonly tableHeaders = ['Sr.\nNo', 'Film Identification', 'Thickness', 'Segment', 'Film\nSize', 'Observations', 'Results'];
   upperDetailsFontSize = 10.5;
+  lowerTableScale = 1;
   lowerDetailsFontSize = 10.5;
   reportNumberDigits = '';
   issueDatePickerValue = this.todayIso();
@@ -322,6 +324,25 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     const groupId = current.filmGroupId || next.filmGroupId || this.createFilmGroupId();
     current.filmGroupId = groupId;
     next.filmGroupId = groupId;
+    this.schedulePageBoundaryUpdate();
+  }
+
+  canUncombineRow(pageIndex: number, rowIndex: number): boolean {
+    const rows = this.pages[pageIndex].rows;
+    const row = rows[rowIndex];
+    if (!row?.filmGroupId) return false;
+    return this.filmIdentificationRowspan(pageIndex, rowIndex) > 1;
+  }
+
+  uncombineRow(pageIndex: number, rowIndex: number): void {
+    const rows = this.pages[pageIndex].rows;
+    const row = rows[rowIndex];
+    if (!row?.filmGroupId) return;
+
+    const groupId = row.filmGroupId;
+    rows
+      .filter((candidate) => candidate.filmGroupId === groupId)
+      .forEach((candidate) => delete candidate.filmGroupId);
     this.schedulePageBoundaryUpdate();
   }
 
@@ -621,6 +642,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     this.footerFormatNo = draft.footerFormatNo ?? this.footerFormatNo;
     this.footerFirstIssue = draft.footerFirstIssue ?? this.footerFirstIssue;
     this.tableColumnWidths = this.normalizeTableColumnWidths(draft.tableColumnWidths);
+    this.lowerTableScale = this.normalizeTableScale(draft.lowerTableScale ?? this.lowerTableScale);
     this.upperDetailsFontSize = this.normalizeFontSize(draft.upperDetailsFontSize, 10.5);
     this.lowerDetailsFontSize = this.normalizeFontSize(draft.lowerDetailsFontSize, 10.5);
     this.hydrateReportNumber();
@@ -738,7 +760,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   updateReportNumber(): void {
     const digits = this.reportNumberDigits.replace(/\D/g, '');
     this.reportNumberDigits = digits;
-    this.setFieldValue('Report No', digits ? `JIA / RT-${digits}` : '');
+    this.setFieldValue('Report No', digits ? `JAI / RT-${digits}` : '');
   }
 
   updateDate(label: 'Issue Date', isoDate: string): void {
@@ -755,19 +777,21 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   filmIdentificationRows(row: GenericRtRow): number {
-    return Math.max(2, Math.ceil(this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) / 3));
+    const baseRows = Math.max(2, Math.ceil(this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) / 3));
+    return Math.max(2, Math.round(baseRows * this.lowerTableScale));
   }
 
   observationRows(row: GenericRtRow): number {
-    return Math.max(2, Math.ceil(this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) / 4));
+    const baseRows = Math.max(2, Math.ceil(this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) / 4));
+    return Math.max(2, Math.round(baseRows * this.lowerTableScale));
   }
 
   filmIdentificationMinHeight(row: GenericRtRow): string {
-    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) * 1.4}mm`;
+    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) * 1.4 * this.lowerTableScale}mm`;
   }
 
   observationMinHeight(row: GenericRtRow): string {
-    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) * 1.15}mm`;
+    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize) * 1.15 * this.lowerTableScale}mm`;
   }
 
   updateFieldFontSize(field: ReportField, value: number | string, fallback: number): void {
@@ -777,6 +801,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
 
   updateRowFontSize(row: GenericRtRow, value: number | string): void {
     row.fontSize = this.normalizeFontSize(Number(value), this.lowerDetailsFontSize);
+    this.schedulePageBoundaryUpdate();
+  }
+
+  updateLowerTableScale(value: number | string): void {
+    this.lowerTableScale = this.normalizeTableScale(Number(value));
     this.schedulePageBoundaryUpdate();
   }
 
@@ -829,9 +858,17 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   }
 
   serialNumber(pageIndex: number, rowIndex: number): number {
-    return this.pages
-      .slice(0, pageIndex)
-      .reduce((total, page) => total + page.rows.length, 0) + rowIndex + 1;
+    const pages = this.pages.slice(0, pageIndex);
+    const previousSerials = pages.reduce((total, page) => total + this.visibleRowCount(page.rows), 0);
+    return previousSerials + this.visibleRowCount(this.pages[pageIndex].rows.slice(0, rowIndex + 1));
+  }
+
+  private visibleRowCount(rows: GenericRtRow[]): number {
+    return rows.reduce((count, row, index) => {
+      if (!row.filmGroupId) return count + 1;
+      if (index > 0 && rows[index - 1]?.filmGroupId === row.filmGroupId) return count;
+      return count + 1;
+    }, 0);
   }
 
   tableColumnWidth(index: number): string {
@@ -938,6 +975,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
       examinationDatePickerValue: this.examinationDatePickerValue,
       itemReceiptDateTimePickerValue: this.itemReceiptDateTimePickerValue,
       upperDetailsFontSize: this.upperDetailsFontSize,
+      lowerTableScale: this.lowerTableScale,
       lowerDetailsFontSize: this.lowerDetailsFontSize,
       remarks: this.remarks,
       abbreviationLeft: this.abbreviationLeft,
@@ -980,6 +1018,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     const total = normalized.reduce((sum, width) => sum + width, 0);
     if (!total) return [...DEFAULT_TABLE_COLUMN_WIDTHS];
     return normalized.map((width) => (width / total) * 100);
+  }
+
+  private normalizeTableScale(value: number): number {
+    if (!Number.isFinite(value)) return 1;
+    return Math.min(1.4, Math.max(0.4, value));
   }
 
   private pdfFileName(): string {
@@ -1037,7 +1080,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
       dropdowns: {
         reportPrefixes: {
           label: 'Report Prefixes',
-          options: ['JIA / RT', 'JIA / UT', 'JIA / MT', 'JIA / PT'],
+          options: ['JAI / RT', 'JAI / UT', 'JAI / MT', 'JAI / PT'],
           defaultValue: ''
         },
         exposureTechniques: {

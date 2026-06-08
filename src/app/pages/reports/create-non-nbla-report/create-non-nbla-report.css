@@ -416,7 +416,7 @@ button:disabled {
 .jia-letterhead {
   display: block;
   margin: 0 0 1mm;
-  min-height: 27mm;
+  min-height: 54mm;
 }
 
 .jia-letterhead img {
@@ -631,7 +631,7 @@ select:focus {
 
 .rt-table th {
   position: relative;
-  height: 9mm;
+  height: calc(9mm * var(--lower-table-scale, 1));
   font-weight: 700;
   background: #f0f4f2;
   font-size: calc(var(--lower-details-font-size, 10.5px) - .5px);
@@ -645,22 +645,22 @@ select:focus {
 
 .rt-table textarea,
 .rt-table input {
-  min-height: 7mm;
+  min-height: calc(7mm * var(--lower-table-scale, 1));
   text-align: center;
   vertical-align: middle;
   border-color: transparent;
 }
 
 .rt-table textarea.film-id-cell {
-  min-height: 18mm;
+  min-height: calc(18mm * var(--lower-table-scale, 1));
   text-align: center;
-  padding-top: 4mm;
+  padding-top: calc(4mm * var(--lower-table-scale, 1));
 }
 
 .rt-table textarea.row-observations {
-  min-height: 14mm;
+  min-height: calc(14mm * var(--lower-table-scale, 1));
   text-align: center;
-  padding-top: 4mm;
+  padding-top: calc(4mm * var(--lower-table-scale, 1));
 }
 
 .rt-table textarea:hover,

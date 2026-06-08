@@ -24,6 +24,10 @@
       <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
     </label>
     <label class="font-size-control">
+      Lower table
+      <input type="number" min="0.4" max="1.4" step="0.05" [(ngModel)]="lowerTableScale" name="lowerTableScale" (ngModelChange)="updateLowerTableScale($event)" />
+    </label>
+    <label class="font-size-control">
       Lower details
       <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
     </label>
@@ -118,6 +122,7 @@
       class="rt-page"
       *ngFor="let page of pages; let pageIndex = index; trackBy: trackByIndex"
       [style.--upper-details-font-size]="upperDetailsFontSize + 'px'"
+      [style.--lower-table-scale]="lowerTableScale"
       [style.--lower-details-font-size]="lowerDetailsFontSize + 'px'"
     >
       <div class="page-edit-tools">
@@ -308,8 +313,8 @@
             <span>{{ fieldValue('Report No') }}</span>
           </div>
           <div>
-            <strong>Issue Date</strong>
-            <span>{{ fieldValue('Issue Date') }}</span>
+            <strong>Report Date</strong>
+            <span>{{ fieldValue('Report Date') }}</span>
           </div>
         </section>
       </ng-template>
@@ -355,6 +360,14 @@
                 *ngIf="canCombineRow(pageIndex, rowIndex)"
                 (click)="combineWithNext(pageIndex, rowIndex)"
               >+</button>
+              <button
+                type="button"
+                class="remove-row"
+                style="left: -9mm; top: 13mm;"
+                aria-label="Uncombine row"
+                *ngIf="canUncombineRow(pageIndex, rowIndex)"
+                (click)="uncombineRow(pageIndex, rowIndex)"
+              >x</button>
               {{ serialNumber(pageIndex, rowIndex) }}
             </td>
             <td
