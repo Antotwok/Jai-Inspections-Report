@@ -11,9 +11,9 @@
   </head>
   <body>
     <script>
-      // Runtime configuration: point to the Render backend service.
+      // Runtime configuration: always use the Render backend service.
       window.__env = window.__env || {};
-      window.__env.API_URL = window.__env.API_URL || 'https://jai-inspections-backend.onrender.com';
+      window.__env.API_URL = 'https://jai-inspections-backend.onrender.com';
     </script>
     <app-root></app-root>
   </body>
