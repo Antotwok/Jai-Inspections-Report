@@ -5,10 +5,13 @@ import {
   ElementRef,
   HostListener,
   OnDestroy,
+  OnInit,
   QueryList,
   ViewChildren
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
+import { Customer, CustomerPart, CustomerService } from '../../../services/customer.service';
 
 interface GenericRtRow {
   description: string;
@@ -20,6 +23,7 @@ interface GenericRtRow {
   filmSize: string;
   observations: string;
   fontSize?: number;
+  filmGroupId?: string;
 }
 
 interface GenericRtPage {
@@ -114,6 +118,7 @@ const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
 const FOCAL_SPOT_OPTION = 'Focal Spot';
+let nextFilmGroupId = 1;
 
 @Component({
   selector: 'app-create-generic-report',
@@ -122,7 +127,7 @@ const FOCAL_SPOT_OPTION = 'Focal Spot';
   templateUrl: './create-generic-report.html',
   styleUrl: './create-generic-report.css'
 })
-export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
+export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, OnInit {
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly otherOption = OTHER_OPTION;
@@ -154,9 +159,20 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   examinationDatePickerValue = this.todayIso();
   itemReceiptDateTimePickerValue = this.todayIso();
   settings: GenericRtSettings = this.loadSettings();
+  customers: Customer[] = [];
+  customerParts: CustomerPart[] = [];
+  selectedCustomerId = '';
+  selectedPartId = '';
+  filmGenerationMessage = '';
 
   evaluatedByOptionsText = '';
   reviewedByOptionsText = '';
+
+  constructor(private customerService: CustomerService) {}
+
+  ngOnInit(): void {
+    this.loadCustomers();
+  }
 
 
   customerFields: ReportField[] = [
@@ -305,7 +321,13 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
   addRow(pageIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     const previous = rows.at(-1);
-    rows.push(previous ? { ...previous } : this.createRow(this.generatedDescription(), ''));
+    if (!previous) {
+      rows.push(this.createRow(this.generatedDescription(), ''));
+      this.schedulePageBoundaryUpdate();
+      return;
+    }
+
+    rows.push(...this.cloneRowGroup(rows, rows.length - 1));
     this.schedulePageBoundaryUpdate();
   }
 
@@ -512,8 +534,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
     localStorage.setItem(this.storageKey, JSON.stringify(drafts[normalizedName]));
     this.selectedDraftToLoad = normalizedName;
-    this.validationMessage = `Draft "${normalizedName}" saved successfully.`;
     this.closeDraftDialog();
+    void this.advanceSequenceAfterSave(`Draft "${normalizedName}" saved successfully.`);
   }
 
   private updateExistingDraft(): void {
@@ -526,7 +548,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     drafts[this.selectedDraftToLoad] = this.createDraftSnapshot();
     localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
     localStorage.setItem(this.storageKey, JSON.stringify(drafts[this.selectedDraftToLoad]));
-    this.validationMessage = `Draft "${this.selectedDraftToLoad}" updated successfully.`;
+    void this.advanceSequenceAfterSave(`Draft "${this.selectedDraftToLoad}" updated successfully.`);
   }
 
   private loadDraft(): void {
@@ -737,6 +759,80 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
     if (['Part Name *', 'Part No *', 'Heat No *'].includes(label)) {
       this.refreshGeneratedDescriptions();
     }
+    this.schedulePageBoundaryUpdate();
+  }
+
+  loadCustomers(): void {
+    this.customerService.getCustomers().subscribe({
+      next: (customers) => {
+        this.customers = customers;
+      }
+    });
+  }
+
+  onCustomerSelection(customerId: string): void {
+    this.selectedCustomerId = customerId;
+    this.selectedPartId = '';
+    this.customerParts = [];
+
+    if (!customerId) {
+      return;
+    }
+
+    const customer = this.customers.find((item) => String(item.id) === customerId);
+    if (customer) {
+      this.setFieldValue('Customer Name & Address *', [customer.customer_name, customer.customer_address].filter(Boolean).join('\n'));
+      this.setFieldValue('Principal Customer *', customer.customer_name);
+    }
+
+    this.customerService.getParts(Number(customerId)).subscribe({
+      next: (parts) => {
+        this.customerParts = parts;
+      }
+    });
+  }
+
+  onPartSelection(partId: string): void {
+    this.selectedPartId = partId;
+    if (!partId) return;
+
+    const part = this.customerParts.find((item) => String(item.id) === partId);
+    if (!part) return;
+
+    this.setFieldValue('Part Name *', part.part_name || '');
+    this.setFieldValue('Part No *', part.part_number || '');
+    this.setFieldValue('Drawing No. *', part.drawing_number || '');
+    this.setFieldValue('Material', part.material || 'SG CAST IRON');
+    this.setFieldValue('Acceptance Std. *', part.acceptance_standard || this.dropdownDefault('acceptanceStandard'));
+    this.refreshGeneratedDescriptions();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  autoGenerateFilmIds(): void {
+    const part = this.getSelectedPart();
+    if (!part?.part_number) {
+      this.filmGenerationMessage = 'Select a customer and part number first.';
+      return;
+    }
+
+    const startNumber = Number(part.current_film_number ?? 0);
+    let nextSequence = Number.isFinite(startNumber) ? startNumber + 1 : 1;
+
+    this.pages.forEach((page) => {
+      page.rows.forEach((row, index) => {
+        if (index > 0 && row.filmGroupId && page.rows[index - 1]?.filmGroupId === row.filmGroupId) {
+          row.description = page.rows[index - 1].description;
+          return;
+        }
+
+        const sequence = String(nextSequence).padStart(3, '0');
+        row.description = `${part.part_number}-${row.segment || ''}-${row.thickness || ''}-${part.film_prefix || ''}-${(part.film_series || 'J')}${sequence}`;
+        nextSequence += 1;
+      });
+    });
+
+    this.filmGenerationMessage = 'Film IDs generated successfully.';
+    this.refreshGeneratedDescriptions();
     this.schedulePageBoundaryUpdate();
   }
 
@@ -953,6 +1049,67 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy {
       filmSize: '4 x 12"',
       observations: 'N S D\nN S D'
     };
+  }
+
+  private getSelectedPart(): CustomerPart | undefined {
+    if (!this.selectedPartId) {
+      return this.customerParts[0];
+    }
+
+    return this.customerParts.find((part) => String(part.id) === this.selectedPartId);
+  }
+
+  private collectFilmIdentifications(): string[] {
+    return this.pages
+      .flatMap((page) => page.rows)
+      .map((row) => row.description?.trim())
+      .filter((value): value is string => Boolean(value));
+  }
+
+  private async advanceSequenceAfterSave(baseMessage: string): Promise<void> {
+    const customerId = Number(this.selectedCustomerId);
+    const partNumber = this.selectedPartId
+      ? (this.customerParts.find((part) => String(part.id) === this.selectedPartId)?.part_number || '')
+      : '';
+
+    if (!customerId || !partNumber) {
+      this.validationMessage = baseMessage;
+      return;
+    }
+
+    try {
+      const result = await firstValueFrom(
+        this.customerService.advanceSequence(customerId, partNumber, this.collectFilmIdentifications())
+      );
+      this.validationMessage = result?.message ? `${baseMessage} ${result.message}` : `${baseMessage} Sequence updated.`;
+    } catch (error: any) {
+      const message = error?.error?.message || 'Failed to update sequence.';
+      this.validationMessage = `${baseMessage} ${message}`;
+    }
+  }
+
+  private createFilmGroupId(): string {
+    return `film-group-${nextFilmGroupId++}`;
+  }
+
+  private cloneRowGroup(rows: GenericRtRow[], startIndex: number): GenericRtRow[] {
+    const sourceRow = rows[startIndex];
+    if (!sourceRow) {
+      return [this.createRow(this.generatedDescription(), '')];
+    }
+
+    const sourceGroupId = sourceRow.filmGroupId;
+    if (!sourceGroupId) {
+      return [{ ...sourceRow }];
+    }
+
+    const groupRows = rows.filter((row) => row.filmGroupId === sourceGroupId);
+    const newGroupId = this.createFilmGroupId();
+
+    return groupRows.map((row) => ({
+      ...structuredClone(row),
+      filmGroupId: newGroupId
+    }));
   }
 
   private defaultSettings(): GenericRtSettings {

@@ -1,0 +1,71 @@
+<main class="customer-page">
+  <section class="hero">
+    <div>
+      <p class="eyebrow">PostgreSQL customer workspace</p>
+      <h1>Customer Management</h1>
+      <p>Manage customers and prepare the data foundation for future customer-part driven reports.</p>
+    </div>
+    <div class="hero-actions">
+      <a routerLink="/" class="secondary-link">Home</a>
+      <button type="button" class="primary" (click)="openAddCustomer()">Add Customer</button>
+    </div>
+  </section>
+
+  <section class="panel search-panel">
+    <label>
+      <span>Search Customer</span>
+      <input type="text" [(ngModel)]="searchTerm" (input)="applyFilter()" placeholder="Search by code, name, contact, or phone" />
+    </label>
+  </section>
+
+  <section class="panel form-panel" *ngIf="isFormVisible">
+    <h2>{{ isEditing ? 'Edit Customer' : 'Add Customer' }}</h2>
+    <div class="grid">
+      <label><span>Customer Code *</span><input [(ngModel)]="customer.customer_code" /></label>
+      <label><span>Customer Name *</span><input [(ngModel)]="customer.customer_name" /></label>
+      <label class="wide"><span>Customer Address</span><textarea [(ngModel)]="customer.customer_address"></textarea></label>
+      <label><span>GST Number</span><input [(ngModel)]="customer.gst_number" /></label>
+      <label><span>Contact Person</span><input [(ngModel)]="customer.contact_person" /></label>
+      <label><span>Phone Number</span><input [(ngModel)]="customer.phone_number" /></label>
+      <label class="wide"><span>Email Address</span><input [(ngModel)]="customer.email" /></label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" (click)="saveCustomer()">Save</button>
+      <button type="button" class="secondary" (click)="cancelForm()">Cancel</button>
+    </div>
+    <p class="message" *ngIf="validationMessage">{{ validationMessage }}</p>
+  </section>
+
+  <section class="panel">
+    <h2>Customer List</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer Code</th>
+            <th>Customer Name</th>
+            <th>Contact Person</th>
+            <th>Phone Number</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let customer of filteredCustomers; trackBy: trackById">
+            <td>{{ customer.customer_code }}</td>
+            <td>{{ customer.customer_name }}</td>
+            <td>{{ customer.contact_person || '-' }}</td>
+            <td>{{ customer.phone_number || '-' }}</td>
+            <td class="row-actions">
+              <button type="button" (click)="viewCustomer(customer)">View</button>
+              <button type="button" (click)="openEditCustomer(customer)">Edit</button>
+              <button type="button" class="danger" (click)="deleteCustomer(customer)">Delete</button>
+            </td>
+          </tr>
+          <tr *ngIf="!filteredCustomers.length">
+            <td colspan="5">No customers found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>

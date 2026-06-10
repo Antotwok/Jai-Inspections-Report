@@ -1,0 +1,130 @@
+<main class="customer-details" *ngIf="customer">
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Customer Details</p>
+      <h1>{{ customer.customer_name }}</h1>
+      <p>{{ customer.customer_code }}</p>
+    </div>
+    <a routerLink="/customers" class="back-link">Back to Customers</a>
+  </section>
+
+  <section class="panel info-grid">
+    <div><span>Customer Code</span><strong>{{ customer.customer_code }}</strong></div>
+    <div><span>Customer Name</span><strong>{{ customer.customer_name }}</strong></div>
+    <div><span>Contact Person</span><strong>{{ customer.contact_person || '-' }}</strong></div>
+    <div><span>Phone Number</span><strong>{{ customer.phone_number || '-' }}</strong></div>
+    <div class="wide"><span>Customer Address</span><strong>{{ customer.customer_address || '-' }}</strong></div>
+    <div><span>GST Number</span><strong>{{ customer.gst_number || '-' }}</strong></div>
+    <div><span>Email Address</span><strong>{{ customer.email || '-' }}</strong></div>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <h2>Parts</h2>
+      <button type="button" class="primary" (click)="openAddPart()">Add Part</button>
+    </div>
+
+    <div class="panel part-form" *ngIf="isPartFormVisible">
+      <div class="grid">
+        <label><span>Part Name</span><input [(ngModel)]="part.part_name" /></label>
+        <label><span>Part Number</span><input [(ngModel)]="part.part_number" /></label>
+        <label><span>Drawing Number</span><input [(ngModel)]="part.drawing_number" /></label>
+        <label><span>Material</span><input [(ngModel)]="part.material" /></label>
+        <label><span>Film Prefix</span><input [(ngModel)]="part.film_prefix" /></label>
+        <label><span>Film Series</span><input [(ngModel)]="part.film_series" /></label>
+        <label><span>Current Film Number</span><input type="number" [(ngModel)]="part.current_film_number" /></label>
+        <label><span>Acceptance Standard</span><input [(ngModel)]="part.acceptance_standard" /></label>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" (click)="savePart()">Save</button>
+        <button type="button" class="secondary" (click)="cancelPartForm()">Cancel</button>
+      </div>
+    </div>
+
+    <p class="message" *ngIf="validationMessage">{{ validationMessage }}</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Part Name</th>
+            <th>Part Number</th>
+            <th>Drawing Number</th>
+            <th>Material</th>
+            <th>Film Prefix</th>
+            <th>Film Series</th>
+            <th>Current Film Number</th>
+            <th>Acceptance Standard</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of parts">
+            <td>{{ row.part_name }}</td>
+            <td>{{ row.part_number || '-' }}</td>
+            <td>{{ row.drawing_number || '-' }}</td>
+            <td>{{ row.material || '-' }}</td>
+            <td>{{ row.film_prefix || '-' }}</td>
+            <td>{{ row.film_series || '-' }}</td>
+            <td>{{ row.current_film_number ?? 0 }}</td>
+            <td>{{ row.acceptance_standard || '-' }}</td>
+            <td class="row-actions">
+              <button type="button" (click)="openEditPart(row)">Edit</button>
+              <button type="button" class="danger" (click)="deletePart(row)">Delete</button>
+            </td>
+          </tr>
+          <tr *ngIf="!parts.length">
+            <td colspan="9">No parts added yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <h2>Sequence Management</h2>
+      <button type="button" class="primary" (click)="openAddSequence()">Add</button>
+    </div>
+
+    <div class="panel part-form" *ngIf="isSequenceFormVisible">
+      <div class="grid">
+        <label><span>Part Number *</span><input [(ngModel)]="sequence.part_number" /></label>
+        <label><span>Sequence Prefix</span><input [(ngModel)]="sequence.sequence_prefix" /></label>
+        <label><span>Current Sequence</span><input type="number" [(ngModel)]="sequence.current_sequence" /></label>
+        <label class="wide"><span>Remarks</span><input [(ngModel)]="sequence.remarks" /></label>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" (click)="saveSequence()">Save</button>
+        <button type="button" class="secondary" (click)="cancelSequenceForm()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Part Number</th>
+            <th>Sequence Prefix</th>
+            <th>Current Sequence</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of sequences">
+            <td>{{ row.part_number }}</td>
+            <td>{{ row.sequence_prefix || 'J' }}</td>
+            <td>{{ row.current_sequence ?? 0 }}</td>
+            <td class="row-actions">
+              <button type="button" (click)="openEditSequence(row)">Edit</button>
+              <button type="button" class="danger" (click)="deleteSequence(row)">Delete</button>
+            </td>
+          </tr>
+          <tr *ngIf="!sequences.length">
+            <td colspan="4">No sequence records yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>

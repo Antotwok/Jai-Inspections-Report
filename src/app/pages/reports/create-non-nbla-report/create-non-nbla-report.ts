@@ -5,12 +5,16 @@ import {
   ElementRef,
   HostListener,
   OnDestroy,
+  OnInit,
   QueryList,
   ViewChildren
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
+import { Customer, CustomerPart, CustomerService } from '../../../services/customer.service';
 
 interface GenericRtRow {
+  serialNo?: string;
   description: string;
   thickness: string;
   segment: string;
@@ -151,7 +155,7 @@ let nextFilmGroupId = 1;
   templateUrl: './create-non-nbla-report.html',
   styleUrl: './create-non-nbla-report.css'
 })
-export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
+export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, OnInit {
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly otherOption = OTHER_OPTION;
@@ -186,9 +190,22 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
   examinationDatePickerValue = this.todayIso();
   itemReceiptDateTimePickerValue = this.todayIso();
   settings: GenericRtSettings = this.loadSettings();
+  customers: Customer[] = [];
+  customerParts: CustomerPart[] = [];
+  selectedCustomerId = '';
+  selectedPartId = '';
+  nextAvailableSequence = '';
+  sequenceStatusMessage = '';
+  filmGenerationMessage = '';
 
   evaluatedByOptionsText = '';
   reviewedByOptionsText = '';
+
+  constructor(private customerService: CustomerService) {}
+
+  ngOnInit(): void {
+    this.loadCustomers();
+  }
 
 
   customerFields: ReportField[] = [
@@ -332,18 +349,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     const lastRow = previousVisibleIndex >= 0 ? lastRows[previousVisibleIndex] : undefined;
 
     if (lastRow) {
-      const previousSpan = this.filmIdentificationRowspan(this.pages.length - 1, previousVisibleIndex);
-      const span = Math.max(1, previousSpan);
-      const newGroupId = span > 1 ? this.createFilmGroupId() : undefined;
-      const clonedRows = Array.from({ length: span }, () => this.cloneRow(lastRow));
-
-      if (newGroupId) {
-        clonedRows.forEach((row) => {
-          row.filmGroupId = newGroupId;
-        });
-      }
-
-      this.pages.push({ rows: clonedRows });
+      this.pages.push({ rows: this.cloneRowGroup(lastRows, previousVisibleIndex) });
     } else {
       this.pages.push({ rows: [this.createRow(this.generatedDescription(), '')] });
     }
@@ -366,18 +372,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     const previous = previousVisibleIndex >= 0 ? rows[previousVisibleIndex] : undefined;
 
     if (previous) {
-      const previousSpan = this.filmIdentificationRowspan(pageIndex, previousVisibleIndex);
-      const span = Math.max(1, previousSpan);
-      const newGroupId = span > 1 ? this.createFilmGroupId() : undefined;
-      const clonedRows = Array.from({ length: span }, () => this.cloneRow(previous));
-
-      if (newGroupId) {
-        clonedRows.forEach((row) => {
-          row.filmGroupId = newGroupId;
-        });
-      }
-
-      rows.push(...clonedRows);
+      rows.push(...this.cloneRowGroup(rows, previousVisibleIndex));
     } else {
       rows.push(this.createRow(this.generatedDescription(), ''));
     }
@@ -681,8 +676,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
     localStorage.setItem(this.storageKey, JSON.stringify(drafts[normalizedName]));
     this.selectedDraftToLoad = normalizedName;
-    this.validationMessage = `Draft "${normalizedName}" saved successfully.`;
     this.closeDraftDialog();
+    void this.advanceSequenceAfterSave(`Draft "${normalizedName}" saved successfully.`);
   }
 
   private updateExistingDraft(): void {
@@ -695,7 +690,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     drafts[this.selectedDraftToLoad] = this.createDraftSnapshot();
     localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
     localStorage.setItem(this.storageKey, JSON.stringify(drafts[this.selectedDraftToLoad]));
-    this.validationMessage = `Draft "${this.selectedDraftToLoad}" updated successfully.`;
+    void this.advanceSequenceAfterSave(`Draft "${this.selectedDraftToLoad}" updated successfully.`);
   }
 
   private loadDraft(): void {
@@ -1021,6 +1016,173 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     this.schedulePageBoundaryUpdate();
   }
 
+  loadCustomers(): void {
+    this.customerService.getCustomers().subscribe({
+      next: (customers) => {
+        this.customers = customers;
+      }
+    });
+  }
+
+  onCustomerSelection(customerId: string): void {
+    this.selectedCustomerId = customerId;
+    this.selectedPartId = '';
+    this.customerParts = [];
+    this.nextAvailableSequence = '';
+    this.sequenceStatusMessage = '';
+
+    this.setFieldValue('Customer Name & Address *', '');
+    this.customerFields[0].value = '';
+    this.setFieldValue('Material', 'SG CAST IRON');
+    this.setFieldValue('Size & Thickness *', '');
+    this.setFieldValue('Area Tested *', this.dropdownDefault('areaTested'));
+    this.setFieldValue('Lead Screens', this.dropdownDefault('leadScreens'));
+    this.setFieldValue('Exposure Technique', this.dropdownDefault('exposureTechniques'));
+    this.setFieldValue('Test Method *', this.dropdownDefault('testMethod'));
+    this.setFieldValue('Acceptance Std. *', this.dropdownDefault('acceptanceStandard'));
+    this.setFieldValue('S.F.D', '');
+
+    if (!customerId) {
+      this.refreshGeneratedDescriptions();
+      this.schedulePageBoundaryUpdate();
+      return;
+    }
+
+    const customer = this.customers.find((item) => String(item.id) === customerId);
+    if (customer) {
+      const customerText = [customer.customer_name, customer.customer_address].filter(Boolean).join('\n');
+      this.setFieldValue('Customer Name & Address *', customerText);
+      this.customerFields[0].value = customerText;
+      this.setFieldValue('Material', 'SG CAST IRON');
+    }
+
+    this.customerService.getParts(Number(customerId)).subscribe({
+      next: (parts) => {
+        this.customerParts = parts;
+        const firstPart = parts[0];
+        if (firstPart) {
+          this.selectedPartId = String(firstPart.id ?? '');
+          this.applyPartSelection(firstPart);
+          this.loadSequenceForSelection(Number(customerId), firstPart.part_number || '');
+        }
+        this.refreshGeneratedDescriptions();
+        this.schedulePageBoundaryUpdate();
+      }
+    });
+  }
+
+  onPartSelection(partId: string): void {
+    this.selectedPartId = partId;
+    if (!partId) return;
+
+    const part = this.customerParts.find((item) => String(item.id) === partId);
+    if (!part) return;
+
+    this.applyPartSelection(part);
+    this.loadSequenceForSelection(Number(this.selectedCustomerId), part.part_number || '');
+  }
+
+  autoGenerateFilmIds(): void {
+    const part = this.getSelectedPart();
+    if (!part?.part_number) {
+      this.filmGenerationMessage = 'Select a customer and part number first.';
+      return;
+    }
+
+    const startNumber = Number(part.current_film_number ?? 0);
+    let nextSequence = Number.isFinite(startNumber) ? startNumber + 1 : 1;
+
+    this.pages.forEach((page) => {
+      page.rows.forEach((row, index) => {
+        if (index > 0 && row.filmGroupId && page.rows[index - 1]?.filmGroupId === row.filmGroupId) {
+          row.description = page.rows[index - 1].description;
+          return;
+        }
+
+        const sequence = String(nextSequence).padStart(3, '0');
+        row.description = `${part.part_number}-${row.segment || ''}-${row.thickness || ''}-${part.film_prefix || ''}-${(part.film_series || 'J')}${sequence}`;
+        nextSequence += 1;
+      });
+    });
+
+    this.filmGenerationMessage = 'Film IDs generated successfully.';
+    this.refreshGeneratedDescriptions();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  private applyPartSelection(part: CustomerPart): void {
+    this.setFieldValue('Part Name *', part.part_name || '');
+    this.setFieldValue('Part No *', part.part_number || '');
+    this.setFieldValue('Drawing No. *', part.drawing_number || '');
+    this.setFieldValue('Material', part.material || 'SG CAST IRON');
+    this.setFieldValue('Size & Thickness *', part.part_number || '');
+    this.setFieldValue('Acceptance Std. *', part.acceptance_standard || this.dropdownDefault('acceptanceStandard'));
+    this.refreshGeneratedDescriptions();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  private collectFilmIdentifications(): string[] {
+    return this.pages
+      .flatMap((page) => page.rows)
+      .map((row) => row.description?.trim())
+      .filter((value): value is string => Boolean(value));
+  }
+
+  private async advanceSequenceAfterSave(baseMessage: string): Promise<void> {
+    const customerId = Number(this.selectedCustomerId);
+    const partNumber = this.selectedPartId
+      ? (this.customerParts.find((part) => String(part.id) === this.selectedPartId)?.part_number || '')
+      : '';
+
+    if (!customerId || !partNumber) {
+      this.validationMessage = baseMessage;
+      return;
+    }
+
+    try {
+      const result = await firstValueFrom(
+        this.customerService.advanceSequence(customerId, partNumber, this.collectFilmIdentifications())
+      );
+
+      this.validationMessage = result?.message ? `${baseMessage} ${result.message}` : baseMessage;
+      if (!result?.message && result?.next_available_sequence) {
+        this.validationMessage = `${baseMessage} Sequence updated.`;
+      }
+    } catch (error: any) {
+      const message = error?.error?.message || 'Failed to update sequence.';
+      this.validationMessage = `${baseMessage} ${message}`;
+    }
+  }
+
+  private getSelectedPart(): CustomerPart | undefined {
+    if (!this.selectedPartId) {
+      return this.customerParts[0];
+    }
+
+    return this.customerParts.find((part) => String(part.id) === this.selectedPartId);
+  }
+
+  private loadSequenceForSelection(customerId: number, partNumber: string): void {
+    if (!customerId || !partNumber) {
+      this.nextAvailableSequence = '';
+      this.sequenceStatusMessage = '';
+      return;
+    }
+
+    this.customerService.searchSequence(customerId, partNumber).subscribe({
+      next: (sequence) => {
+        this.nextAvailableSequence = sequence?.next_available_sequence || '';
+        this.sequenceStatusMessage = this.nextAvailableSequence
+          ? `Next available sequence: ${this.nextAvailableSequence}`
+          : '';
+      },
+      error: (error) => {
+        this.nextAvailableSequence = '';
+        this.sequenceStatusMessage = error?.error?.message || 'No sequence record found.';
+      }
+    });
+  }
+
   addDropdownOption(key: string): void {
     this.settings.dropdowns[key].options.push('');
     this.persistSettings();
@@ -1067,6 +1229,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     const pages = this.pages.slice(0, pageIndex);
     const previousSerials = pages.reduce((total, page) => total + this.visibleRowCount(page.rows), 0);
     return previousSerials + this.visibleRowCount(this.pages[pageIndex].rows.slice(0, rowIndex + 1));
+  }
+
+  serialNumberText(pageIndex: number, rowIndex: number): string {
+    const row = this.pages[pageIndex]?.rows[rowIndex];
+    return row?.serialNo?.trim() || String(this.serialNumber(pageIndex, rowIndex));
   }
 
   private visibleRowCount(rows: GenericRtRow[]): number {
@@ -1260,10 +1427,29 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy {
     return { ...row };
   }
 
+  private cloneRowGroup(rows: GenericRtRow[], startIndex: number): GenericRtRow[] {
+    const sourceRow = rows[startIndex];
+    if (!sourceRow) {
+      return [this.createRow(this.generatedDescription(), '')];
+    }
+
+    const sourceGroupId = sourceRow.filmGroupId;
+    if (!sourceGroupId) {
+      return [this.cloneRow(sourceRow)];
+    }
+
+    const groupRows = rows.filter((row) => row.filmGroupId === sourceGroupId);
+    const newGroupId = this.createFilmGroupId();
+
+    return groupRows.map((row) => ({
+      ...structuredClone(row),
+      filmGroupId: newGroupId
+    }));
+  }
+
   private sameRowContext(a: GenericRtRow, b: GenericRtRow): boolean {
     return (
       a.thickness === b.thickness &&
-      a.segment === b.segment &&
       a.filmSize === b.filmSize &&
       a.observations === b.observations &&
       a.results === b.results

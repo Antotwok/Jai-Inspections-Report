@@ -14,6 +14,7 @@
     <button type="button" (click)="openSaveDialog()">Save</button>
     <button type="button" (click)="openLoadDialog()">Load</button>
     <button type="button" (click)="openUpdateDialog()">Update</button>
+    <button type="button" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
     <button type="button" class="quiet-action" [disabled]="!selectedDraftToLoad" (click)="openDeleteDraftDialog(selectedDraftToLoad)">
       Delete
     </button>
@@ -37,9 +38,27 @@
       Show Page Boundaries
     </label>
     <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
+    <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
     <span class="page-overflow-warning" *ngIf="hasPageBoundaryOverflow">
       Content below the red line will move to Page 2 when printed or exported.
     </span>
+  </section>
+
+  <section class="settings-panel customer-connector" aria-label="Customer and part selection">
+    <div class="settings-column">
+      <h2>Customer</h2>
+      <select [ngModel]="selectedCustomerId" name="selectedCustomerId" (ngModelChange)="onCustomerSelection($event)">
+        <option value="">Select customer</option>
+        <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
+      </select>
+    </div>
+    <div class="settings-column">
+      <h2>Part</h2>
+      <select [ngModel]="selectedPartId" name="selectedPartId" (ngModelChange)="onPartSelection($event)">
+        <option value="">Select part</option>
+        <option *ngFor="let part of customerParts" [value]="part.id">{{ part.part_number || 'Part Number' }}</option>
+      </select>
+    </div>
   </section>
 
   <section class="settings-panel" *ngIf="settingsOpen" aria-label="NABL RT Report settings">
