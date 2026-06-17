@@ -106,7 +106,7 @@ async function createCustomer(req, res) {
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING *
       `,
       [
@@ -128,7 +128,9 @@ async function createCustomer(req, res) {
     }
 
     console.error('Failed to create customer:', error);
-    res.status(500).json({ message: 'Failed to create customer.' });
+    res.status(500).json({
+      message: error?.message || 'Failed to create customer.'
+    });
   }
 }
 
@@ -208,7 +210,9 @@ async function updateCustomer(req, res) {
     }
 
     console.error('Failed to update customer:', error);
-    res.status(500).json({ message: 'Failed to update customer.' });
+    res.status(500).json({
+      message: error?.message || 'Failed to update customer.'
+    });
   }
 }
 

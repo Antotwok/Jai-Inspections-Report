@@ -67,6 +67,7 @@ export class CustomerDetailsComponent implements OnInit {
     if (!this.customer?.id) return;
     this.part = this.emptyPart();
     this.part.customer_id = this.customer.id;
+    this.part.film_series = 'J';
     this.isPartFormVisible = true;
     this.isEditingPart = false;
     this.editingPartId = undefined;
@@ -74,7 +75,10 @@ export class CustomerDetailsComponent implements OnInit {
   }
 
   openEditPart(part: CustomerPart): void {
-    this.part = { ...part };
+    this.part = {
+      ...part,
+      date_code: part.date_code || part.film_prefix || ''
+    };
     this.isPartFormVisible = true;
     this.isEditingPart = true;
     this.editingPartId = part.id;
@@ -97,6 +101,9 @@ export class CustomerDetailsComponent implements OnInit {
       ...this.part,
       customer_id: this.customer.id,
       part_name: this.part.part_name?.trim() || '',
+      date_code: this.part.date_code?.trim() || null,
+      film_prefix: this.part.date_code?.trim() || null,
+      film_series: (this.part.film_series || 'J').trim() || 'J',
       current_film_number: Number(this.part.current_film_number ?? 0) || 0
     };
 
@@ -199,12 +206,9 @@ export class CustomerDetailsComponent implements OnInit {
       customer_id: 0,
       part_name: '',
       part_number: '',
-      drawing_number: '',
-      material: '',
-      film_prefix: '',
-      film_series: '',
-      current_film_number: 0,
-      acceptance_standard: ''
+      date_code: '',
+      film_series: 'J',
+      current_film_number: 0
     };
   }
 

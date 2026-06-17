@@ -28,12 +28,9 @@
       <div class="grid">
         <label><span>Part Name</span><input [(ngModel)]="part.part_name" /></label>
         <label><span>Part Number</span><input [(ngModel)]="part.part_number" /></label>
-        <label><span>Drawing Number</span><input [(ngModel)]="part.drawing_number" /></label>
-        <label><span>Material</span><input [(ngModel)]="part.material" /></label>
-        <label><span>Film Prefix</span><input [(ngModel)]="part.film_prefix" /></label>
+        <label><span>Date Code</span><input [(ngModel)]="part.date_code" /></label>
         <label><span>Film Series</span><input [(ngModel)]="part.film_series" /></label>
-        <label><span>Current Film Number</span><input type="number" [(ngModel)]="part.current_film_number" /></label>
-        <label><span>Acceptance Standard</span><input [(ngModel)]="part.acceptance_standard" /></label>
+        <label><span>Current Sequence</span><input type="number" [(ngModel)]="part.current_film_number" /></label>
       </div>
       <div class="actions">
         <button type="button" class="primary" (click)="savePart()">Save</button>
@@ -49,12 +46,9 @@
           <tr>
             <th>Part Name</th>
             <th>Part Number</th>
-            <th>Drawing Number</th>
-            <th>Material</th>
-            <th>Film Prefix</th>
+            <th>Date Code</th>
             <th>Film Series</th>
-            <th>Current Film Number</th>
-            <th>Acceptance Standard</th>
+            <th>Current Sequence</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -62,19 +56,16 @@
           <tr *ngFor="let row of parts">
             <td>{{ row.part_name }}</td>
             <td>{{ row.part_number || '-' }}</td>
-            <td>{{ row.drawing_number || '-' }}</td>
-            <td>{{ row.material || '-' }}</td>
-            <td>{{ row.film_prefix || '-' }}</td>
+            <td>{{ row.date_code || row.film_prefix || '-' }}</td>
             <td>{{ row.film_series || '-' }}</td>
             <td>{{ row.current_film_number ?? 0 }}</td>
-            <td>{{ row.acceptance_standard || '-' }}</td>
             <td class="row-actions">
               <button type="button" (click)="openEditPart(row)">Edit</button>
               <button type="button" class="danger" (click)="deletePart(row)">Delete</button>
             </td>
           </tr>
           <tr *ngIf="!parts.length">
-            <td colspan="9">No parts added yet.</td>
+            <td colspan="6">No parts added yet.</td>
           </tr>
         </tbody>
       </table>

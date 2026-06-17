@@ -43,6 +43,11 @@ interface DetailPair {
   report?: ReportField;
 }
 
+interface ReportCompanyGroup {
+  name: string;
+  reports: StoredReport[];
+}
+
 interface DropdownSetting {
   label: string;
   options: string[];
@@ -187,12 +192,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   pageBoundaryStates: PageBoundaryState[] = [];
   settingsOpen = false;
   combinationDialogMode: CombinationDialogMode = '';
-  saveStatusMessage = '';
-  saveStatusType: 'success' | 'error' | '' = '';
+  appStatusMessage = 'Ready';
+  appStatusType: 'ready' | 'loaded' | 'saved' | 'updated' | 'deleted' | 'warning' | 'error' = 'ready';
   dialogMode: DraftDialogMode = '';
   confirmMode: ConfirmDialogMode = '';
   draftDialogName = '';
   selectedDraftToLoad = '';
+  selectedLoadCompany = '';
   startingSequence = 0;
   combinationSaveMessage = '';
   availableReports: StoredReport[] = [];
@@ -203,6 +209,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   upperDetailsFontSize = 10.5;
   lowerTableScale = 0.6;
   lowerDetailsFontSize = 10.5;
+  previewZoom = 1;
   density = '';
   sensitivity = '';
   reportNumberDigits = '';
@@ -247,7 +254,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   customerFields: ReportField[] = [
     { label: '\u00A0Customer Name & \u00A0Address *', value: '' },
-    { label: '\u00A0Material', value: 'SG CAST IRON' },
+    { label: '\u00A0Material', value: '' },
     { label: '\u00A0Size & Thickness *', value: '' },
     { label: '\u00A0Area Tested *', value: this.dropdownDefault('areaTested') },
     { label: '\u00A0Lead Screens', value: this.dropdownDefault('leadScreens') },
@@ -289,6 +296,15 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return this.pages.length;
   }
 
+  get currentReportSummary(): string {
+    const reportNumber = this.fieldValue('Report No').trim();
+    if (!reportNumber) return 'New Report';
+    const customerName = this.extractCustomerNameFromField();
+    const partNumber = this.selectedPartNumber.trim() || this.fieldValue('Part No *').trim();
+    const dateCode = this.selectedDateCode.trim();
+    return [reportNumber, customerName, partNumber, dateCode, 'NON-NABL'].filter(Boolean).join(' | ');
+  }
+
   get detailPairs(): DetailPair[] {
     const rowCount = Math.max(this.customerFields.length, this.reportFields.length);
     return Array.from({ length: rowCount }, (_, index) => ({
@@ -299,6 +315,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   get companyNameAndAddress(): string {
     return this.customerFields[0]?.value?.trim() ?? '';
+  }
+
+  get appStatusLabel(): string {
+    return this.appStatusMessage || 'Ready';
   }
 
   get dropdownEntries(): Array<{ key: string; setting: DropdownSetting }> {
@@ -319,6 +339,34 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const draftNames = Object.keys(this.loadNamedDrafts());
     const hasLegacyDraft = Boolean(localStorage.getItem(this.storageKey));
     return hasLegacyDraft ? [...draftNames, 'Last saved draft'] : draftNames;
+  }
+
+  get reportCompanyGroups(): ReportCompanyGroup[] {
+    const grouped = new Map<string, StoredReport[]>();
+
+    this.availableReports.forEach((report) => {
+      const companyName = this.reportCompanyName(report);
+      const groupName = companyName || 'Others';
+      const current = grouped.get(groupName) ?? [];
+      current.push(report);
+      grouped.set(groupName, current);
+    });
+
+    return Array.from(grouped.entries())
+      .map(([name, reports]) => ({
+        name,
+        reports: reports.sort((a, b) => String(a.report_no || '').localeCompare(String(b.report_no || '')))
+      }))
+      .sort((a, b) => {
+        if (a.name === 'Others') return 1;
+        if (b.name === 'Others') return -1;
+        return a.name.localeCompare(b.name);
+      });
+  }
+
+  get filteredLoadReports(): StoredReport[] {
+    if (!this.selectedLoadCompany) return this.availableReports;
+    return this.availableReports.filter((report) => this.reportCompanyName(report) === this.selectedLoadCompany);
   }
 
   get canConfirmDraftDialog(): boolean {
@@ -531,6 +579,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   printReport(): void {
+    this.setAppStatus('PDF Export', 'warning');
     window.print();
   }
 
@@ -538,6 +587,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const reportHtml = this.serializedReportHtml();
     if (!reportHtml) {
       this.validationMessage = 'Report preview was not found.';
+      this.setAppStatus('Unable to Export Report', 'error');
       return;
     }
 
@@ -564,8 +614,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       link.click();
       URL.revokeObjectURL(link.href);
       this.validationMessage = 'PDF exported successfully.';
+      this.setAppStatus('PDF Exported Successfully', 'warning');
     } catch (error) {
       this.validationMessage = 'Start the backend server, then try Export as PDF again.';
+      this.setAppStatus('Unable to Export Report', 'error');
       console.error(error);
     }
   }
@@ -617,6 +669,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   openUpdateDialog(): void {
     if (!this.currentReportId) {
       this.validationMessage = 'Load a report before updating an existing record.';
+      this.setAppStatus('Unable to Update Report', 'error');
       return;
     }
 
@@ -682,6 +735,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       next: () => {
         this.selectedDraftToLoad = '';
         this.validationMessage = `Report #${reportId} deleted successfully.`;
+        this.setAppStatus('Report Deleted Successfully', 'deleted');
         this.closeConfirmDialog();
         this.closeDraftDialog();
         void this.refreshAvailableReports();
@@ -709,7 +763,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private async saveDraft(): Promise<void> {
     const normalizedName = this.draftDialogName.trim();
     if (!normalizedName) {
-      this.showSaveStatus('Draft name is required.', 'error');
+      this.setAppStatus('Unable to Save Report', 'error');
       return;
     }
 
@@ -721,17 +775,17 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.selectedDraftToLoad = String(saved.id);
       await this.incrementCustomerReportNumber();
       this.closeDraftDialog();
-      this.showSaveStatus(`Report "${normalizedName}" saved successfully.`, 'success');
+      this.setAppStatus('Report Saved Successfully', 'saved');
       void this.advanceSequenceAfterSave(`Report "${normalizedName}" saved successfully.`);
     } catch (error: any) {
       console.error('[report:save:error]', error);
-      this.showSaveStatus(error?.error?.message || error?.message || 'Failed to save report.', 'error');
+      this.setAppStatus(error?.error?.message || error?.message || 'Unable to Save Report', 'error');
     }
   }
 
   private async updateExistingDraft(): Promise<void> {
     if (!this.currentReportId) {
-      this.showSaveStatus('Load a report before updating an existing record.', 'error');
+      this.setAppStatus('Unable to Update Report', 'error');
       return;
     }
 
@@ -739,11 +793,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       const payload = this.createReportPayload('NON_NABL', 'DRAFT');
       console.log('[report:update]', { reportId: this.currentReportId, payload });
       await firstValueFrom(this.reportService.updateReport(this.currentReportId, payload));
-      this.showSaveStatus(`Report "${this.fieldValue('Report No')}" updated successfully.`, 'success');
+      this.setAppStatus('Report Updated Successfully', 'updated');
       void this.advanceSequenceAfterSave(`Report "${this.fieldValue('Report No')}" updated successfully.`);
     } catch (error: any) {
       console.error('[report:update:error]', error);
-      this.showSaveStatus(error?.error?.message || error?.message || 'Failed to update report.', 'error');
+      this.setAppStatus(error?.error?.message || error?.message || 'Unable to Update Report', 'error');
     }
   }
 
@@ -751,6 +805,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const selected = this.selectedDraftToLoad?.trim();
     if (!selected) {
       this.validationMessage = 'Select a report to load.';
+      this.setAppStatus('Unable to Load Report', 'error');
       return;
     }
 
@@ -758,6 +813,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       const reportId = Number(selected);
       if (!Number.isFinite(reportId)) {
         this.validationMessage = 'Select a valid saved report.';
+        this.setAppStatus('Unable to Load Report', 'error');
         return;
       }
       await this.loadReportFromServer(reportId);
@@ -765,6 +821,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     } catch (error: any) {
       console.error('[report:load:error]', error);
       this.validationMessage = error?.error?.message || error?.message || 'Failed to load report.';
+      this.setAppStatus(error?.error?.message || error?.message || 'Unable to Load Report', 'error');
     }
   }
 
@@ -805,7 +862,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     try {
       this.availableReports = await firstValueFrom(this.reportService.listReports({ reportType: 'NON_NABL' }));
       const currentSelection = this.availableReports.find((report) => String(report.id) === this.selectedDraftToLoad);
-      this.selectedDraftToLoad = currentSelection ? String(currentSelection.id) : this.availableReports[0] ? String(this.availableReports[0].id) : '';
+      this.selectedDraftToLoad = currentSelection ? String(currentSelection.id) : '';
+      this.selectedLoadCompany = currentSelection ? this.reportCompanyName(currentSelection) : '';
+      if (!this.selectedLoadCompany && this.availableReports.length) {
+        this.selectedLoadCompany = this.reportCompanyGroups[0]?.name || '';
+      }
       if (!this.availableReports.length) {
         this.validationMessage = 'No saved reports found.';
       }
@@ -825,7 +886,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
     this.applyDraft(draft);
     this.restoreSavedCustomerAndPart(report);
-    this.showSaveStatus(`Report "${report.report_no}" loaded.`, 'success');
+    this.setAppStatus('Report Loaded Successfully', 'loaded');
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { reportId: report.id },
@@ -846,6 +907,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       return value as T;
     }
     return null;
+  }
+
+  reportCompanyName(report: StoredReport): string {
+    const name = String(report.customer_name || report.report_json?.customerName || '').trim();
+    return name;
   }
 
   private createReportPayload(reportType: 'NABL' | 'NON_NABL', status: 'DRAFT' | 'COMPLETED') {
@@ -872,8 +938,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       customer_name: selectedCustomer?.customer_name || this.extractCustomerNameFromField(),
       part_id: selectedPart ? Number(selectedPart.id) : (this.selectedPartId ? Number(this.selectedPartId) : null),
       part_number: selectedPart?.part_number || this.fieldValue('Part No *'),
-      date_code: this.selectedDateCode || null,
-      film_prefix: selectedPart?.film_prefix || null,
+      date_code: this.selectedDateCode || selectedPart?.date_code || null,
       film_series: selectedPart?.film_series || null,
       sequence_start: this.extractMaxSequence(rows),
       sequence_end: this.extractMaxSequence(rows),
@@ -937,7 +1002,75 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   private performReset(): void {
     localStorage.removeItem(this.storageKey);
-    window.location.reload();
+    this.resetDraftState();
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {},
+      queryParamsHandling: ''
+    });
+    this.validationMessage = '';
+    this.setAppStatus('Ready', 'ready');
+  }
+
+  private resetDraftState(): void {
+    this.suppressHistoryCapture = true;
+    this.currentReportId = null;
+    this.selectedCustomerId = '';
+    this.selectedPartId = '';
+    this.selectedPartNumber = '';
+    this.selectedDateCode = '';
+    this.partSearchText = '';
+    this.dateCodeSearchText = '';
+    this.customerParts = [];
+    this.nextAvailableSequence = '';
+    this.sequenceStatusMessage = '';
+    this.showStartingSequence = false;
+    this.combinationDialogMode = '';
+    this.dialogMode = '';
+    this.confirmMode = '';
+    this.draftDialogName = '';
+    this.selectedDraftToLoad = '';
+    this.startingSequence = 0;
+    this.combinationSaveMessage = '';
+    this.availableReports = [];
+    this.reportNumberDigits = '';
+    this.issueDatePickerValue = this.todayIso();
+    this.examinationDatePickerValue = this.todayIso();
+    this.density = '';
+    this.sensitivity = '';
+    this.remarks = '- - -';
+    this.abbreviationLeft = 'N S D - NO SIGNIFICANT DEFECT';
+    this.abbreviationRight = 'A - POROSITY';
+    this.evaluatedBy = this.dropdownDefault('evaluatedBy');
+    this.reviewedBy = this.dropdownDefault('reviewedBy');
+    this.pages = [{ rows: [this.createRow(this.generatedDescription(), '')] }];
+    this.customerFields = [
+      { label: '\u00A0Customer Name & \u00A0Address *', value: '' },
+      { label: '\u00A0Material', value: '' },
+      { label: '\u00A0Size & Thickness *', value: '' },
+      { label: '\u00A0Area Tested *', value: this.dropdownDefault('areaTested') },
+      { label: '\u00A0Lead Screens', value: this.dropdownDefault('leadScreens') },
+      { label: '\u00A0Exposure Technique', value: this.dropdownDefault('exposureTechniques') },
+      { label: '\u00A0Test Method *', value: this.dropdownDefault('testMethod') },
+      { label: '\u00A0Acceptance Std. *', value: this.dropdownDefault('acceptanceStandard') },
+      { label: SFD_OPTION, value: '' }
+    ];
+    this.reportFields = [
+      { label: '\u00A0Report No', value: '' },
+      { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+      { label: '\u00A0Test Location', value: this.dropdownDefault('testLocation') },
+      { label: '\u00A0Source', value: this.dropdownDefault('source') },
+      { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
+      { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
+      { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
+      { label: '\u00A0Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
+      { label: '\u00A0Penetrameter', value: this.settings.defaultValues['Penetrameter'] }
+    ];
+    this.otherFieldLabels.clear();
+    this.normalizeSelectableReportFields();
+    this.resetHistory();
+    this.suppressHistoryCapture = false;
+    this.schedulePageBoundaryUpdate();
   }
 
   private captureHistory(): void {
@@ -1185,6 +1318,15 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
+  zoomPreview(delta: number): void {
+    const next = Math.round((this.previewZoom + delta) * 10) / 10;
+    this.previewZoom = Math.min(1.6, Math.max(0.7, next));
+  }
+
+  resetPreviewZoom(): void {
+    this.previewZoom = 1;
+  }
+
   onDetailChanged(label: string): void {
     const normalizedLabel = this.normalizeLabel(label);
     if (['Part Name *', 'Part No *', 'Heat No *', 'Customer Name & Address *'].includes(normalizedLabel)) {
@@ -1219,7 +1361,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     this.setFieldValue('Customer Name & Address *', '');
     this.customerFields[0].value = '';
-    this.setFieldValue('Material', 'SG CAST IRON');
+    this.setFieldValue('Material', '');
     this.setFieldValue('Size & Thickness *', '');
     this.setFieldValue('Area Tested *', this.dropdownDefault('areaTested'));
     this.setFieldValue('Lead Screens', this.dropdownDefault('leadScreens'));
@@ -1239,7 +1381,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       const customerText = [customer.customer_name, customer.customer_address].filter(Boolean).join('\n');
       this.setFieldValue('Customer Name & Address *', customerText);
       this.customerFields[0].value = customerText;
-      this.setFieldValue('Material', 'SG CAST IRON');
+      this.setFieldValue('Material', '');
       this.updateReportNumberForCustomer(customer);
     }
 
@@ -1304,14 +1446,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const dateCode = this.selectedDateCode.trim();
     if (!partNumber || !dateCode) {
       this.combinationSaveMessage = 'Select a part number and date code first.';
-      this.showSaveStatus('Select a part number and date code first.', 'error');
+      this.setAppStatus('Unable to Create Combination', 'error');
       return;
     }
 
     try {
       await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
       this.combinationSaveMessage = 'Combination created successfully.';
-      this.showSaveStatus('Combination created successfully.', 'success');
+      this.setAppStatus('New Combination Detected', 'warning');
       this.closeCombinationDialog();
       await this.refreshDateCodesForPart(partNumber);
       this.loadSequenceForSelection(partNumber, dateCode);
@@ -1319,7 +1461,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       console.error('[part-datecode:create:error]', error);
       const message = error?.error?.message || error?.message || 'Failed to create combination.';
       this.combinationSaveMessage = message;
-      this.showSaveStatus(message, 'error');
+      this.setAppStatus(message, 'error');
     }
   }
 
@@ -1352,6 +1494,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     });
 
     this.filmGenerationMessage = 'Film IDs generated successfully.';
+    this.setAppStatus('Auto Generate Film IDs', 'warning');
     this.refreshGeneratedDescriptions();
     this.selectedPartNumber = partNumber;
     this.selectedDateCode = dateCode;
@@ -1363,8 +1506,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.setFieldValue('Part Name *', part.part_name || '');
     this.setFieldValue('Part No *', part.part_number || '');
     this.setFieldValue('Drawing No. *', part.drawing_number || '');
-    this.setFieldValue('Material', part.material || 'SG CAST IRON');
-    this.setFieldValue('Size & Thickness *', part.part_number || '');
     this.setFieldValue('Acceptance Std. *', part.acceptance_standard || this.dropdownDefault('acceptanceStandard'));
     this.refreshGeneratedDescriptions();
     this.schedulePageBoundaryUpdate();
@@ -1388,7 +1529,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         this.nextAvailableSequence = sequence?.exists === false ? '' : (sequence?.next_available_sequence || '');
         this.showStartingSequence = sequence?.exists === false;
         this.sequenceStatusMessage = sequence?.exists === false
-          ? 'No sequence exists for this Part Number and Date Code.'
+          ? 'New Combination Detected'
           : this.nextAvailableSequence
             ? `Next available sequence: ${this.nextAvailableSequence}`
             : '';
@@ -1402,7 +1543,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       error: (error) => {
         this.nextAvailableSequence = '';
         this.showStartingSequence = true;
-        this.sequenceStatusMessage = error?.error?.message || 'No sequence exists for this Part Number and Date Code.';
+        this.sequenceStatusMessage = error?.error?.message || 'New Combination Detected';
       }
     });
   }
@@ -1553,7 +1694,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       setting.defaultValue = setting.options[0] ?? '';
     }
     this.persistSettings();
-    this.showSaveStatus('Settings saved successfully.', 'success');
+    this.setAppStatus('Settings Saved Successfully', 'saved');
   }
 
   moveDropdownOption(key: string, index: number, direction: -1 | 1): void {
@@ -1579,16 +1720,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.applyDefaultValuesToBlankFields();
   }
 
-  private showSaveStatus(message: string, type: 'success' | 'error'): void {
-    this.saveStatusMessage = message;
-    this.saveStatusType = type;
-    if (this.saveStatusTimer) {
-      window.clearTimeout(this.saveStatusTimer);
-    }
-    this.saveStatusTimer = window.setTimeout(() => {
-      this.saveStatusMessage = '';
-      this.saveStatusType = '';
-    }, 3500);
+  private setAppStatus(message: string, type: 'ready' | 'loaded' | 'saved' | 'updated' | 'deleted' | 'warning' | 'error'): void {
+    this.appStatusMessage = message;
+    this.appStatusType = type;
   }
 
   fieldValue(label: string): string {

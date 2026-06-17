@@ -2,41 +2,67 @@
   <section class="hero">
     <div>
       <p class="eyebrow">Sequence Search</p>
-      <h1>Find the next report sequence</h1>
-      <p>Search by customer and part number to see the current sequence and the next available report number.</p>
+      <h1>Find part/date-code sequences</h1>
+      <p>Search by part number, date code, or customer to see the current and next available sequence values.</p>
     </div>
     <a routerLink="/" class="home-link">Home</a>
   </section>
 
   <section class="panel search-panel">
     <label>
-      <span>Customer Dropdown</span>
+      <span>Customer</span>
       <select [(ngModel)]="customerId" name="customerId">
         <option value="">Select customer</option>
         <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
       </select>
     </label>
     <label>
-      <span>Part Number</span>
-      <input [(ngModel)]="partNumber" name="partNumber" />
+      <span>Customer Search</span>
+      <input [(ngModel)]="customerSearch" name="customerSearch" placeholder="Type customer name or code" />
     </label>
-    <button type="button" class="primary" (click)="search()">Search Button</button>
-  </section>
-
-  <section class="panel" *ngIf="result">
-    <h2>Search Result</h2>
-    <div class="result-grid">
-      <div><span>Customer Name</span><strong>{{ result.customer_name }}</strong></div>
-      <div><span>Part Number</span><strong>{{ result.part_number }}</strong></div>
-      <div><span>Sequence Prefix</span><strong>{{ result.sequence_prefix || 'J' }}</strong></div>
-      <div><span>Current Sequence</span><strong>{{ result.current_sequence ?? 0 }}</strong></div>
-      <div><span>Next Available Sequence</span><strong>{{ result.next_available_sequence }}</strong></div>
+    <label>
+      <span>Part Number</span>
+      <input [(ngModel)]="partNumber" name="partNumber" placeholder="e.g. 724940" />
+    </label>
+    <label>
+      <span>Date Code</span>
+      <input [(ngModel)]="dateCode" name="dateCode" placeholder="e.g. 155611" />
+    </label>
+    <div class="search-actions">
+      <button type="button" class="primary" (click)="search()">Search</button>
+      <button type="button" class="secondary" (click)="clear()">Clear</button>
     </div>
   </section>
 
-  <section class="panel" *ngIf="message && !result">
+  <section class="panel" *ngIf="message">
     <p class="message">{{ message }}</p>
-    <button type="button" class="primary" (click)="createSequence()">Create Sequence</button>
-    <p class="hint">New sequences start at J001 because Current Sequence is set to 0.</p>
+  </section>
+
+  <section class="panel" *ngIf="results.length">
+    <h2>Search Results</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Part Number</th>
+            <th>Date Code</th>
+            <th>Current Sequence</th>
+            <th>Next Available Sequence</th>
+            <th>Last Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of results">
+            <td>{{ row.customer_name || '-' }}</td>
+            <td>{{ row.part_number }}</td>
+            <td>{{ row.date_code }}</td>
+            <td>{{ row.current_sequence ?? 0 }}</td>
+            <td>{{ nextAvailableSequence(row) }}</td>
+            <td>{{ row.updated_at ? (row.updated_at | date: 'medium') : '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 </main>

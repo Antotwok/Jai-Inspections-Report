@@ -8,7 +8,7 @@ const baseSelect = `
     part_number,
     drawing_number,
     material,
-    film_prefix,
+    COALESCE(date_code, film_prefix) AS date_code,
     film_series,
     current_film_number,
     acceptance_standard,
@@ -72,7 +72,7 @@ async function createPart(req, res) {
   const partNumber = normalizeString(req.body?.part_number);
   const drawingNumber = normalizeString(req.body?.drawing_number);
   const material = normalizeString(req.body?.material);
-  const filmPrefix = normalizeString(req.body?.film_prefix);
+  const dateCode = normalizeString(req.body?.date_code ?? req.body?.film_prefix);
   const filmSeries = normalizeString(req.body?.film_series);
   const acceptanceStandard = normalizeString(req.body?.acceptance_standard);
   const currentFilmNumber = req.body?.current_film_number ?? 0;
@@ -96,13 +96,14 @@ async function createPart(req, res) {
           drawing_number,
           material,
           film_prefix,
+          date_code,
           film_series,
           current_film_number,
           acceptance_standard,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING *
       `,
       [
@@ -111,7 +112,8 @@ async function createPart(req, res) {
         partNumber,
         drawingNumber,
         material,
-        filmPrefix,
+        dateCode,
+        dateCode,
         filmSeries,
         Number.isFinite(Number(currentFilmNumber)) ? Number(currentFilmNumber) : 0,
         acceptanceStandard
@@ -132,7 +134,7 @@ async function updatePart(req, res) {
   const partNumber = normalizeString(req.body?.part_number);
   const drawingNumber = normalizeString(req.body?.drawing_number);
   const material = normalizeString(req.body?.material);
-  const filmPrefix = normalizeString(req.body?.film_prefix);
+  const dateCode = normalizeString(req.body?.date_code ?? req.body?.film_prefix);
   const filmSeries = normalizeString(req.body?.film_series);
   const acceptanceStandard = normalizeString(req.body?.acceptance_standard);
   const currentFilmNumber = req.body?.current_film_number ?? 0;
@@ -162,11 +164,12 @@ async function updatePart(req, res) {
           drawing_number = $4,
           material = $5,
           film_prefix = $6,
-          film_series = $7,
-          current_film_number = $8,
-          acceptance_standard = $9,
+          date_code = $7,
+          film_series = $8,
+          current_film_number = $9,
+          acceptance_standard = $10,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $10
+        WHERE id = $11
         RETURNING *
       `,
       [
@@ -175,7 +178,8 @@ async function updatePart(req, res) {
         partNumber,
         drawingNumber,
         material,
-        filmPrefix,
+        dateCode,
+        dateCode,
         filmSeries,
         Number.isFinite(Number(currentFilmNumber)) ? Number(currentFilmNumber) : 0,
         acceptanceStandard,

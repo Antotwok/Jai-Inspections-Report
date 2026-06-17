@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Customer, CustomerPartSequence, CustomerService } from '../../services/customer.service';
+import { PartDateCodeSequenceRecord, Customer, CustomerService } from '../../services/customer.service';
 
 @Component({
   selector: 'app-sequence-search',
@@ -14,9 +14,11 @@ import { Customer, CustomerPartSequence, CustomerService } from '../../services/
 export class SequenceSearchComponent implements OnInit {
   customers: Customer[] = [];
   customerId = '';
+  customerSearch = '';
   partNumber = '';
+  dateCode = '';
   message = '';
-  result?: CustomerPartSequence & { customer_name?: string; next_available_sequence?: string };
+  results: PartDateCodeSequenceRecord[] = [];
 
   constructor(private customerService: CustomerService) {}
 
@@ -24,43 +26,55 @@ export class SequenceSearchComponent implements OnInit {
     this.customerService.getCustomers().subscribe({
       next: (customers) => (this.customers = customers)
     });
+    this.loadAllSequences();
   }
 
   search(): void {
-    this.message = '';
-    this.result = undefined;
-
-    if (!this.customerId || !this.partNumber.trim()) {
-      this.message = 'Select a customer and enter a part number.';
+    const filters = this.currentFilters();
+    if (!filters.customerId && !filters.customer && !filters.partNumber && !filters.dateCode) {
+      this.loadAllSequences();
       return;
     }
 
-    this.customerService.searchSequence(Number(this.customerId), this.partNumber.trim()).subscribe({
-      next: (result) => {
-        this.result = result;
-      },
-      error: (error) => {
-        this.message = error?.error?.message || 'No sequence record found.';
-      }
-    });
+    this.fetchSequences(filters);
   }
 
-  createSequence(): void {
-    if (!this.customerId || !this.partNumber.trim()) {
-      this.message = 'Select a customer and enter a part number.';
-      return;
-    }
+  clear(): void {
+    this.customerId = '';
+    this.customerSearch = '';
+    this.partNumber = '';
+    this.dateCode = '';
+    this.loadAllSequences();
+  }
 
-    this.customerService.createSequence({
-      customer_id: Number(this.customerId),
-      part_number: this.partNumber.trim(),
-      sequence_prefix: 'J',
-      current_sequence: 0,
-      remarks: ''
-    }).subscribe({
-      next: () => this.search(),
+  nextAvailableSequence(row: PartDateCodeSequenceRecord): string {
+    return row.next_available_sequence || `J${String((row.current_sequence ?? 0) + 1).padStart(3, '0')}`;
+  }
+
+  private currentFilters() {
+    return {
+      customerId: this.customerId ? Number(this.customerId) : undefined,
+      customer: this.customerSearch.trim(),
+      partNumber: this.partNumber.trim(),
+      dateCode: this.dateCode.trim()
+    };
+  }
+
+  private loadAllSequences(): void {
+    this.message = '';
+    this.fetchSequences({});
+  }
+
+  private fetchSequences(filters: { customerId?: number; customer?: string; partNumber?: string; dateCode?: string }): void {
+    this.message = '';
+    this.customerService.searchPartDateCodeSequences(filters).subscribe({
+      next: (results) => {
+        this.results = results;
+        this.message = results.length ? '' : 'No matching sequences found.';
+      },
       error: (error) => {
-        this.message = error?.error?.message || 'Unable to create sequence.';
+        this.results = [];
+        this.message = error?.error?.message || 'Failed to search sequences.';
       }
     });
   }

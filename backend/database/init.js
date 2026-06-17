@@ -30,7 +30,7 @@ async function ensureCustomerPartsTable() {
       part_number VARCHAR(255),
       drawing_number VARCHAR(255),
       material VARCHAR(255),
-      film_prefix VARCHAR(100),
+      date_code VARCHAR(100),
       film_series VARCHAR(100),
       current_film_number INTEGER DEFAULT 0,
       acceptance_standard VARCHAR(255),
@@ -63,8 +63,19 @@ async function ensureCustomerPartsTable() {
   `);
 
   await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_customer_parts_film_prefix
-    ON customer_parts (film_prefix)
+    ALTER TABLE customer_parts
+    ADD COLUMN IF NOT EXISTS date_code VARCHAR(100)
+  `);
+
+  await pool.query(`
+    UPDATE customer_parts
+    SET date_code = COALESCE(date_code, film_prefix)
+    WHERE date_code IS NULL AND film_prefix IS NOT NULL
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_customer_parts_date_code
+    ON customer_parts (date_code)
   `);
 
   await pool.query(`
@@ -154,7 +165,7 @@ async function ensureReportsTable() {
       customer_name VARCHAR(255),
       part_id INTEGER REFERENCES customer_parts(id) ON DELETE SET NULL,
       part_number VARCHAR(255),
-      film_prefix VARCHAR(100),
+      date_code VARCHAR(100),
       film_series VARCHAR(100),
       sequence_start INTEGER,
       sequence_end INTEGER,

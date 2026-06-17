@@ -88,10 +88,10 @@ export class CustomerManagementComponent implements OnInit {
     }
 
     const payload = {
-      ...this.customer,
       customer_code: this.customer.customer_code.trim(),
       current_report_number: Number(this.customer.current_report_number ?? 0) || 0,
-      customer_name: this.customer.customer_name.trim()
+      customer_name: this.customer.customer_name.trim(),
+      customer_address: this.customer.customer_address?.trim() || null
     };
 
     const request = this.isEditing && this.editingId

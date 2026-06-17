@@ -24,6 +24,7 @@ export interface CustomerPart {
   drawing_number?: string | null;
   material?: string | null;
   film_prefix?: string | null;
+  date_code?: string | null;
   film_series?: string | null;
   current_film_number?: number;
   acceptance_standard?: string | null;
@@ -40,6 +41,16 @@ export interface CustomerPartSequence {
   last_report_no?: string | null;
   remarks?: string | null;
   created_at?: string;
+  updated_at?: string;
+}
+
+export interface PartDateCodeSequenceRecord {
+  id?: number;
+  customer_name?: string | null;
+  part_number: string;
+  date_code: string;
+  current_sequence?: number;
+  next_available_sequence?: string;
   updated_at?: string;
 }
 
@@ -124,6 +135,17 @@ export class CustomerService {
 
   deleteSequence(id: number) {
     return this.http.delete<{ message: string }>(`${this.api}/customer-part-sequences/${id}`);
+  }
+
+  searchPartDateCodeSequences(filters: { customerId?: number; customer?: string; partNumber?: string; dateCode?: string }) {
+    return this.http.get<PartDateCodeSequenceRecord[]>(`${this.api}/customer-part-sequences/search`, {
+      params: {
+        ...(filters.customerId ? { customerId: filters.customerId } : {}),
+        ...(filters.customer ? { customer: filters.customer } : {}),
+        ...(filters.partNumber ? { partNumber: filters.partNumber } : {}),
+        ...(filters.dateCode ? { dateCode: filters.dateCode } : {})
+      }
+    });
   }
 
   advanceSequence(customerId: number, partNumber: string, filmIdentifications: string[]) {

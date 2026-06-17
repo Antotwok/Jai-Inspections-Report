@@ -1,21 +1,53 @@
 <main class="dashboard">
   <section class="intro">
-    <p class="eyebrow">Jai Inspection Agencies LLP</p>
-    <h1>Radiography report workspace</h1>
-    <p>
-      Prepare RT reports and invoices from guided forms, keep repeat rows consistent, and print the final sheet in the same structure as the current templates.
-    </p>
-    <a routerLink="/create-generic-report" style="margin-left: 12px; background: #ffffff; color: #146348; border: 1px solid #b8c6c0;">Create NABL RT Report</a>
+    <div class="hero-copy">
+      <p class="eyebrow">Jai Inspection Agencies LLP</p>
+      <h1>Radiography report workspace</h1>
+      <p>
+        Prepare RT reports and invoices from guided forms, keep repeat rows consistent, and print the final sheet in the same structure as the current templates.
+      </p>
+    </div>
 
-    <a routerLink="/create-non-nbla-report" style="margin-left: 12px; background: #ffffff; color: #146348; border: 1px solid #b8c6c0;">Create Non- NBLA Report</a>
+    <div class="hero-panel">
+      <span class="panel-label">Quick Launch</span>
+      <div class="launcher-grid">
+        <a routerLink="/create-generic-report" class="launch-card primary-card">
+          <span class="launch-kicker">Reports</span>
+          <strong>Create NABL RT Report</strong>
+          <span>Build the standard report with sequence-aware numbering.</span>
+        </a>
 
-    <a routerLink="/reports" style="margin-left: 12px; background: #ffffff; color: #146348; border: 1px solid #b8c6c0;">Report Repository</a>
+        <a routerLink="/create-non-nbla-report" class="launch-card">
+          <span class="launch-kicker">Reports</span>
+          <strong>Create Non-NABL Report</strong>
+          <span>Open the non-NABL report form with the same workflow.</span>
+        </a>
 
-    <a routerLink="/create-invoice" style="margin-left: 12px; background: #ffffff; color: #146348; border: 1px solid #b8c6c0;">Create Invoice</a>
+        <a routerLink="/reports" class="launch-card">
+          <span class="launch-kicker">Records</span>
+          <strong>Report Repository</strong>
+          <span>Browse saved reports and reopen them for editing.</span>
+        </a>
 
-    <a routerLink="/customers" style="margin-left: 12px; background: #ffffff; color: #146348; border: 1px solid #b8c6c0;">Customer Management</a>
+        <a routerLink="/create-invoice" class="launch-card">
+          <span class="launch-kicker">Billing</span>
+          <strong>Create Invoice</strong>
+          <span>Generate invoice records from the same workspace.</span>
+        </a>
 
-    <a routerLink="/sequence-search" style="margin-left: 12px; background: #ffffff; color: #146348; border: 1px solid #b8c6c0;">Sequence Search</a>
+        <a routerLink="/customers" class="launch-card">
+          <span class="launch-kicker">Master Data</span>
+          <strong>Customer Management</strong>
+          <span>Manage customer records, parts, and report sequences.</span>
+        </a>
+
+        <a routerLink="/sequence-search" class="launch-card">
+          <span class="launch-kicker">Lookup</span>
+          <strong>Sequence Search</strong>
+          <span>Look up part/date-code combinations and current sequences.</span>
+        </a>
+      </div>
+    </div>
   </section>
 
   <section class="workflow">

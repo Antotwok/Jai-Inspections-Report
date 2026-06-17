@@ -4,10 +4,17 @@
       <p class="eyebrow">Non-NABL RT Report</p>
       <h1>Radiography Test Report</h1>
     </div>
+    <div class="header-status">
+      <div class="status-block">
+        <span class="status-label">Current Report</span>
+        <strong class="status-value">{{ currentReportSummary }}</strong>
+      </div>
+      <div class="status-block">
+        <span class="status-label">System Status</span>
+        <strong class="status-pill" [attr.data-status]="appStatusType">{{ appStatusLabel }}</strong>
+      </div>
+    </div>
     <div class="header-actions">
-      <button type="button" (click)="showMenus = !showMenus">
-        {{ showMenus ? 'Hide Menus' : 'Show Menus' }}
-      </button>
       <button type="button" (click)="showCustomerPartSelection = !showCustomerPartSelection">
         {{ showCustomerPartSelection ? 'Hide Customer/Part' : 'Show Customer/Part' }}
       </button>
@@ -15,104 +22,487 @@
     </div>
   </header>
 
-  <section class="page-controls" *ngIf="showMenus" aria-label="Page controls">
-    <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
-    <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
-    <button type="button" [disabled]="!canUndo" (click)="undo()">Undo</button>
-    <button type="button" [disabled]="!canRedo" (click)="redo()">Redo</button>
-    <button type="button" (click)="addPage()">Add Page</button>
-    <button type="button" (click)="openSaveDialog()">Save</button>
-    <button type="button" (click)="openLoadDialog()">Load</button>
-    <button type="button" (click)="openUpdateDialog()">Update</button>
-    <button type="button" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
-    <button type="button" class="quiet-action" [disabled]="!selectedDraftToLoad" (click)="openDeleteDraftDialog(selectedDraftToLoad)">
-      Delete
-    </button>
-    <button type="button" (click)="settingsOpen = !settingsOpen">Settings</button>
-    <button type="button" class="quiet-action" (click)="resetDraft()">Reset</button>
-    <label class="font-size-control">
-      Upper details
-      <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
-    </label>
-    <label class="font-size-control">
-      Lower table
-      <input type="number" min="0.4" max="1.4" step="0.05" [(ngModel)]="lowerTableScale" name="lowerTableScale" (ngModelChange)="updateLowerTableScale($event)" />
-    </label>
-    <label class="font-size-control">
-      Lower details
-      <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
-    </label>
-    <label class="boundary-toggle">
-      <input
-        type="checkbox"
-        [(ngModel)]="showPageBoundaries"
-        name="showPageBoundaries"
-        (ngModelChange)="schedulePageBoundaryUpdate()"
-      />
-      Show Page Boundaries
-    </label>
-    <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
-    <span class="save-status-message" *ngIf="saveStatusMessage" [class.success]="saveStatusType === 'success'" [class.error]="saveStatusType === 'error'">
-      {{ saveStatusMessage }}
-    </span>
-    <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
-    <span class="page-overflow-warning" *ngIf="hasPageBoundaryOverflow">
-      Content below the red line will move to Page 2 when printed or exported.
-    </span>
-  </section>
+  <section class="report-workspace" aria-label="Non-NABL report workspace">
+    <aside class="control-panel">
+      <section class="control-card" aria-label="Report controls">
+        <div class="control-card-header">
+          <p class="eyebrow">REPORT</p>
+          <h2>Report controls</h2>
+        </div>
+        <div class="control-group">
+          <label>
+            Customer
+            <select [ngModel]="selectedCustomerId" name="selectedCustomerId" (ngModelChange)="onCustomerSelection($event)">
+              <option value="">Select customer</option>
+              <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
+            </select>
+          </label>
+          <label>
+            Part Number
+            <input
+              [(ngModel)]="partSearchText"
+              name="partSearchText"
+              placeholder="Search or type part number"
+              (ngModelChange)="onPartSelection($event)"
+            />
+          </label>
+          <div class="autocomplete-list" *ngIf="partSearchText.trim()">
+            <button type="button" *ngFor="let partNumber of filteredPartNumberOptions" (click)="partSearchText = partNumber; onPartSelection(partNumber)">
+              {{ partNumber }}
+            </button>
+          </div>
+          <label>
+            Date Code
+            <input
+              [(ngModel)]="dateCodeSearchText"
+              name="dateCodeSearchText"
+              placeholder="Search or type date code"
+              (ngModelChange)="onDateCodeSelection($event)"
+            />
+          </label>
+          <div class="autocomplete-list" *ngIf="dateCodeSearchText.trim()">
+            <button type="button" *ngFor="let dateCode of filteredDateCodeOptions" (click)="dateCodeSearchText = dateCode; onDateCodeSelection(dateCode)">
+              {{ dateCode }}
+            </button>
+          </div>
+          <div class="sequence-inline" *ngIf="nextAvailableSequence">
+            Next Available Sequence: {{ nextAvailableSequence }}
+          </div>
+          <label>
+            Starting Sequence
+            <input type="number" min="0" step="1" [(ngModel)]="startingSequence" name="startingSequence" />
+          </label>
+          <p class="sequence-missing" *ngIf="sequenceStatusMessage">{{ sequenceStatusMessage }}</p>
+          <button type="button" class="primary-action" *ngIf="showStartingSequence || sequenceStatusMessage" (click)="openAddCombinationDialog()">
+            Create Sequence
+          </button>
+        </div>
+      </section>
 
-  <section class="settings-panel customer-connector" *ngIf="showCustomerPartSelection" aria-label="Customer and part selection">
-    <div class="settings-column">
-      <h2>Customer</h2>
-      <select [ngModel]="selectedCustomerId" name="selectedCustomerId" (ngModelChange)="onCustomerSelection($event)">
-        <option value="">Select customer</option>
-        <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
-      </select>
-    </div>
-    <div class="settings-column">
-      <h2>Part</h2>
-      <input
-        [(ngModel)]="partSearchText"
-        name="partSearchText"
-        placeholder="Search or type part number"
-        (ngModelChange)="onPartSelection($event)"
-      />
-      <div class="autocomplete-list" *ngIf="partSearchText.trim()">
-        <button type="button" *ngFor="let partNumber of filteredPartNumberOptions" (click)="partSearchText = partNumber; onPartSelection(partNumber)">
-          {{ partNumber }}
-        </button>
+      <section class="control-card" aria-label="Actions">
+        <div class="control-card-header">
+          <p class="eyebrow">ACTIONS</p>
+          <h2>Actions</h2>
+        </div>
+        <div class="action-grid">
+          <button type="button" class="primary-action" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
+          <button type="button" (click)="openSaveDialog()">Save</button>
+          <button type="button" (click)="openLoadDialog()">Load</button>
+          <button type="button" (click)="openUpdateDialog()">Update</button>
+          <button type="button" class="export-action" (click)="printReport()">Print PDF</button>
+        </div>
+        <div class="action-grid secondary-actions">
+          <button type="button" [disabled]="!canUndo" (click)="undo()">Undo</button>
+          <button type="button" [disabled]="!canRedo" (click)="redo()">Redo</button>
+          <button type="button" (click)="addPage()">Add Page</button>
+          <button type="button" class="quiet-action" [disabled]="!selectedDraftToLoad" (click)="openDeleteDraftDialog(selectedDraftToLoad)">
+            Delete
+          </button>
+          <button type="button" (click)="settingsOpen = !settingsOpen">Settings</button>
+          <button type="button" class="quiet-action" (click)="resetDraft()">Reset</button>
+        </div>
+        <div class="control-chips">
+          <label class="font-size-control">
+            Upper details
+            <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
+          </label>
+          <label class="font-size-control">
+            Lower table
+            <input type="number" min="0.4" max="1.4" step="0.05" [(ngModel)]="lowerTableScale" name="lowerTableScale" (ngModelChange)="updateLowerTableScale($event)" />
+          </label>
+          <label class="font-size-control">
+            Lower details
+            <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
+          </label>
+          <label class="boundary-toggle">
+            <input
+              type="checkbox"
+              [(ngModel)]="showPageBoundaries"
+              name="showPageBoundaries"
+              (ngModelChange)="schedulePageBoundaryUpdate()"
+            />
+            Show Page Boundaries
+          </label>
+        </div>
+        <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
+        <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
+        <span class="page-overflow-warning" *ngIf="hasPageBoundaryOverflow">
+          Content below the red line will move to Page 2 when printed or exported.
+        </span>
+      </section>
+
+    </aside>
+
+    <section class="preview-panel" aria-label="Live report preview">
+      <section class="report-stack" [style.--preview-zoom]="previewZoom" aria-label="Non-NABL RT Report pages">
+        <article
+          #reportPage
+          class="rt-page"
+          *ngFor="let page of pages; let pageIndex = index; trackBy: trackByIndex"
+          [style.--upper-details-font-size]="upperDetailsFontSize + 'px'"
+          [style.--lower-table-scale]="lowerTableScale"
+          [style.--lower-details-font-size]="lowerDetailsFontSize + 'px'"
+        >
+          <div class="page-edit-tools">
+            <span>Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
+            <button type="button" (click)="addPage()">Add Page</button>
+            <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex)">Remove Page</button>
+          </div>
+
+          <header class="jia-letterhead">
+          </header>
+
+          <ng-container *ngIf="pageIndex === 0; else continuationPage">
+            <h2 class="report-title">Radiography Test Report</h2>
+
+            <section class="details-grid">
+              <div class="detail-row" *ngFor="let pair of detailPairs; let i = index; trackBy: trackByIndex">
+                <label>
+                  <ng-container *ngIf="pair.customer && isSfdSelectorLabel(pair.customer.label); else customerLabelText">
+                    <select
+                      class="label-select"
+                      [ngModel]="pair.customer.label"
+                      [name]="'customerLabelSelect' + i"
+                      (ngModelChange)="onSfdModeChange(pair.customer, $event)"
+                    >
+                      <option value="S.F.D">S.F.D</option>
+                      <option value="F.F.D">F.F.D</option>
+                    </select>
+                  </ng-container>
+                  <ng-template #customerLabelText>{{ pair.customer?.label }}</ng-template>
+                </label>
+                <ng-container *ngIf="pair.customer">
+                  <ng-container *ngIf="dropdownKeyForLabel(pair.customer.label); else plainCustomerTextarea">
+                    <div class="dropdown-with-other" [class.has-custom]="isOtherFieldSelected(pair.customer, dropdownKeyForLabel(pair.customer.label))">
+                      <select
+                        [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
+                        [ngModel]="dropdownSelection(dropdownKeyForLabel(pair.customer.label), pair.customer.value)"
+                        [name]="'customerFieldSelect' + i"
+                        (ngModelChange)="onDropdownSelection(pair.customer, dropdownKeyForLabel(pair.customer.label), $event)"
+                      >
+                        <option value="">Select</option>
+                        <option *ngFor="let option of settings.dropdowns[dropdownKeyForLabel(pair.customer.label)].options" [value]="option">{{ option }}</option>
+                        <option [value]="otherOption">Others</option>
+                      </select>
+                      <textarea
+                        *ngIf="isOtherFieldSelected(pair.customer, dropdownKeyForLabel(pair.customer.label))"
+                        [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
+                        [(ngModel)]="pair.customer.value"
+                        [name]="'customerFieldOther' + i"
+                        rows="1"
+                        placeholder="Enter custom value"
+                      ></textarea>
+                    </div>
+                  </ng-container>
+                  <ng-template #plainCustomerTextarea>
+                    <textarea
+                      [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
+                      [(ngModel)]="pair.customer.value"
+                      (ngModelChange)="onDetailChanged(pair.customer.label)"
+                      [name]="'customerField' + i"
+                      [rows]="i === 0 ? 2 : 1"
+                    ></textarea>
+                  </ng-template>
+                </ng-container>
+                <span class="empty-detail" *ngIf="!pair.customer"></span>
+
+                <label>
+                  <ng-container *ngIf="pair.report && isExposureSelectorLabel(pair.report.label); else sourceSizeOrPlainLabel">
+                    <select
+                      class="label-select"
+                      [ngModel]="pair.report.label === 'Exposure Time / KV & Ma' ? 'Exposure Time' : pair.report.label"
+                      [name]="'exposureMode' + i"
+                      (ngModelChange)="onExposureModeChange(pair.report, $event)"
+                    >
+                      <option value="Exposure Time">Exposure Time</option>
+                      <option value="KV & Ma">KV & Ma</option>
+                    </select>
+                  </ng-container>
+                  <ng-template #sourceSizeOrPlainLabel>
+                    <ng-container *ngIf="pair.report && isSourceSizeSelectorLabel(pair.report.label); else sfdOrPlainLabel">
+                      <select
+                        class="label-select"
+                        [ngModel]="pair.report.label === 'Source Size / Focal Spot' ? 'Source Size' : pair.report.label"
+                        [name]="'sourceSizeMode' + i"
+                        (ngModelChange)="onSourceSizeModeChange(pair.report, $event)"
+                      >
+                        <option value="Source Size">Source Size</option>
+                        <option value="Focal Spot">Focal Spot</option>
+                      </select>
+                    </ng-container>
+                    <ng-template #sfdOrPlainLabel>
+                      <ng-container *ngIf="pair.report && isSfdSelectorLabel(pair.report.label); else plainReportLabel">
+                        <select
+                          class="label-select"
+                          [ngModel]="pair.report.label"
+                          [name]="'sfdMode' + i"
+                          (ngModelChange)="onSfdModeChange(pair.report, $event)"
+                        >
+                          <option value="S.F.D">S.F.D</option>
+                          <option value="F.F.D">F.F.D</option>
+                        </select>
+                      </ng-container>
+                    </ng-template>
+                  </ng-template>
+                  <ng-template #plainReportLabel>{{ pair.report?.label }}</ng-template>
+                </label>
+                <ng-container *ngIf="pair.report">
+                  <div
+                    class="report-number-control"
+                    *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'; else reportDateOrText"
+                    [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                  >
+                    <span class="report-prefix">JIA /</span>
+                    <input
+  type="text"
+  [ngModel]="reportNumberDigits"
+  name="reportNumberDigits"
+  (ngModelChange)="onReportDigitsChange($event)"
+/>
+                  </div>
+                  <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
+
+                  <ng-template #reportDateOrText>
+                    <ng-container *ngIf="getFieldControlType(pair.report.label) === 'issueDate'; else plainReportTextarea">
+                      <input
+                        class="date-picker"
+                        [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                        type="date"
+                        [(ngModel)]="issueDatePickerValue"
+                        [name]="'reportField' + i"
+                        (ngModelChange)="updateDate('Issue Date', $event)"
+                      />
+                    </ng-container>
+                    <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'issueDate'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
+                  </ng-template>
+
+                  <ng-template #plainReportTextarea>
+                    <ng-container *ngIf="dropdownKeyForLabel(pair.report.label); else reportTextarea">
+                      <div class="dropdown-with-other" [class.has-custom]="isOtherFieldSelected(pair.report, dropdownKeyForLabel(pair.report.label))">
+                        <select
+                          [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                          [ngModel]="dropdownSelection(dropdownKeyForLabel(pair.report.label), pair.report.value)"
+                          [name]="'reportFieldSelect' + i"
+                          (ngModelChange)="onDropdownSelection(pair.report, dropdownKeyForLabel(pair.report.label), $event)"
+                        >
+                          <option value="">Select</option>
+                          <option *ngFor="let option of settings.dropdowns[dropdownKeyForLabel(pair.report.label)].options" [value]="option">{{ option }}</option>
+                          <option [value]="otherOption">Others</option>
+                        </select>
+                        <textarea
+                          *ngIf="isOtherFieldSelected(pair.report, dropdownKeyForLabel(pair.report.label))"
+                          [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                          [(ngModel)]="pair.report.value"
+                          [name]="'reportFieldOther' + i"
+                          rows="1"
+                          placeholder="Enter custom value"
+                        ></textarea>
+                      </div>
+                    </ng-container>
+                    <ng-template #reportTextarea>
+                      <textarea
+                        [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                        [(ngModel)]="pair.report.value"
+                        [name]="'reportField' + i"
+                        [rows]="i === 0 ? 2 : 1"
+                      ></textarea>
+                    </ng-template>
+                  </ng-template>
+                </ng-container>
+                <span class="empty-detail" *ngIf="!pair.report"></span>
+              </div>
+              <div class="detail-row density-sensitivity-row">
+                <label>Density</label>
+                <textarea [(ngModel)]="density" name="density" rows="1"></textarea>
+                <label>Sensitivity</label>
+                <textarea [(ngModel)]="sensitivity" name="sensitivity" rows="1"></textarea>
+              </div>
+              <div class="remarks-detail-row">
+                <label>Remarks</label>
+                <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
+              </div>
+            </section>
+          </ng-container>
+
+          <ng-template #continuationPage>
+            <section class="continuation-summary">
+              <div>
+                <strong>Company Name & Address</strong>
+                <span>{{ companyNameAndAddress }}</span>
+              </div>
+              <div>
+                <strong>Report No</strong>
+                <span>{{ fieldValue('Report No') }}</span>
+              </div>
+              <div>
+                <strong>Report Date</strong>
+                <span>{{ fieldValue('Report Date') }}</span>
+              </div>
+            </section>
+          </ng-template>
+
+          <section class="table-toolbar">
+            <button type="button" (click)="addRow(pageIndex)">Add Row</button>
+          </section>
+
+          <table class="rt-table">
+            <colgroup>
+              <col *ngFor="let width of tableColumnWidths; let columnIndex = index; trackBy: trackByIndex" [style.width]="tableColumnWidth(columnIndex)" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th *ngFor="let header of tableHeaders; let columnIndex = index; trackBy: trackByIndex">
+                  <span class="table-header-label">{{ tableHeaderLabel(header) }}</span>
+                  <button
+                    type="button"
+                    class="column-resize-handle"
+                    *ngIf="columnIndex < tableHeaders.length - 1"
+                    aria-label="Resize column"
+                    (mousedown)="startColumnResize($event, columnIndex)"
+                  ></button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let row of page.rows; let rowIndex = index; trackBy: trackByIndex"
+                [style.font-size]="rowFontSize(row)"
+              >
+                <td
+                  class="sr-cell"
+                  *ngIf="showSerialCell(pageIndex, rowIndex)"
+                  [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)"
+                >
+                  <button type="button" class="remove-row" aria-label="Remove row" (click)="removeRow(pageIndex, rowIndex)">-</button>
+                  <button
+                    type="button"
+                    class="remove-row"
+                    style="left: -9mm; top: 7mm;"
+                    aria-label="Combine with next row"
+                    *ngIf="canCombineRow(pageIndex, rowIndex)"
+                    (click)="combineWithNext(pageIndex, rowIndex)"
+                  >+</button>
+                  <button
+                    type="button"
+                    class="remove-row"
+                    style="left: -9mm; top: 13mm;"
+                    aria-label="Uncombine row"
+                    *ngIf="canUncombineRow(pageIndex, rowIndex)"
+                    (click)="uncombineRow(pageIndex, rowIndex)"
+                  >x</button>
+                  <input
+                    class="sr-no-input"
+                    type="text"
+                    [ngModel]="row.serialNo ?? serialNumber(pageIndex, rowIndex)"
+                    [name]="'serialNo' + pageIndex + '-' + rowIndex"
+                    (ngModelChange)="row.serialNo = $event"
+                  />
+                </td>
+                <td
+                  *ngIf="showFilmIdentificationCell(pageIndex, rowIndex)"
+                  [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)"
+                >
+                  <textarea
+                    class="film-id-cell"
+                    [(ngModel)]="row.description"
+                    [name]="'desc' + pageIndex + '-' + rowIndex"
+                    [rows]="filmIdentificationRows(row)"
+                    [style.min-height]="filmIdentificationMinHeight(row)"
+                  ></textarea>
+                </td>
+                <td><input [(ngModel)]="row.thickness" [name]="'thick' + pageIndex + '-' + rowIndex" /></td>
+                <td><input [(ngModel)]="row.segment" [name]="'segment' + pageIndex + '-' + rowIndex" /></td>
+                <td><input [(ngModel)]="row.filmSize" [name]="'filmSize' + pageIndex + '-' + rowIndex" /></td>
+                <td>
+                  <textarea
+                    class="row-observations"
+                    [(ngModel)]="row.observations"
+                    [name]="'obs' + pageIndex + '-' + rowIndex"
+                    [rows]="observationRows(row)"
+                    [style.min-height]="observationMinHeight(row)"
+                  ></textarea>
+                </td>
+                <td>
+                  <select [(ngModel)]="row.results" [name]="'results' + pageIndex + '-' + rowIndex">
+                    <option value="Accepted">Accepted</option>
+                    <option value="Not Accepted">Not Accepted</option>
+                  </select>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="table-extension" aria-hidden="true"></div>
+
+          <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
+            <div class="abbreviation-row">
+              <strong>ABBREVIATION :</strong>
+              <textarea [(ngModel)]="abbreviationLeft" name="abbreviationLeft" rows="1"></textarea>
+              <textarea [(ngModel)]="abbreviationRight" name="abbreviationRight" rows="1"></textarea>
+            </div>
+
+            <section class="signature-grid">
+              <div>
+                <strong>Evaluated By</strong>
+                <span class="signature-person">
+                  <select [(ngModel)]="evaluatedBy" name="evaluatedBy">
+                    <option *ngFor="let option of settings.dropdowns['evaluatedBy'].options" [value]="option">{{ option }}</option>
+                  </select>
+                </span>
+              </div>
+              <div>
+                <strong>Reviewed By</strong>
+                <span class="signature-person">
+                  <select [(ngModel)]="reviewedBy" name="reviewedBy">
+                    <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
+                  </select>
+                </span>
+              </div>
+              <div>
+                <strong>for Client</strong>
+                <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
+              </div>
+            </section>
+
+            <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
+            <div class="end-report">**** &nbsp; End of Report &nbsp; ****</div>
+          </section>
+
+          <footer class="page-footer">
+            <span><input [(ngModel)]="footerPageLabel" name="footerPageLabel" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
+            <span><input [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
+            <span><input [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
+          </footer>
+
+          <div class="page-boundary-overlay" *ngIf="showPageBoundaries" aria-hidden="true">
+            <div
+              class="page-overflow-zone"
+              *ngIf="pageBoundaryState(pageIndex).hasOverflow"
+              [style.top.px]="pageBoundaryState(pageIndex).overflowTop"
+              [style.height.px]="pageBoundaryState(pageIndex).overflowHeight"
+            ></div>
+            <div
+              class="page-boundary-line"
+              *ngFor="let boundary of pageBoundaryState(pageIndex).pageBreaks; trackBy: trackByIndex"
+              [style.top.px]="boundary.top"
+            >
+              <span>End of Page {{ boundary.pageNumber }}</span>
+            </div>
+          </div>
+        </article>
+      </section>
+      <div class="preview-zoom-control" aria-label="Preview zoom controls">
+        <button type="button" (click)="zoomPreview(-0.1)" aria-label="Zoom out">-</button>
+        <span>{{ (previewZoom * 100) | number:'1.0-0' }}%</span>
+        <button type="button" (click)="zoomPreview(0.1)" aria-label="Zoom in">+</button>
+        <button type="button" class="reset" (click)="resetPreviewZoom()">Reset</button>
       </div>
-    </div>
-    <div class="settings-column">
-      <h2>Date Code</h2>
-      <input
-        [(ngModel)]="dateCodeSearchText"
-        name="dateCodeSearchText"
-        placeholder="Search or type date code"
-        (ngModelChange)="onDateCodeSelection($event)"
-      />
-      <div class="autocomplete-list" *ngIf="dateCodeSearchText.trim()">
-        <button type="button" *ngFor="let dateCode of filteredDateCodeOptions" (click)="dateCodeSearchText = dateCode; onDateCodeSelection(dateCode)">
-          {{ dateCode }}
-        </button>
-      </div>
-      <div class="sequence-inline" *ngIf="nextAvailableSequence">
-        Next Available Sequence: {{ nextAvailableSequence }}
-      </div>
-      <p class="sequence-missing" *ngIf="sequenceStatusMessage">{{ sequenceStatusMessage }}</p>
-      <button type="button" class="primary-action" *ngIf="showStartingSequence || sequenceStatusMessage" (click)="openAddCombinationDialog()">
-        Add New Combination
-      </button>
-    </div>
-    <div class="settings-column" *ngIf="sequenceStatusMessage">
-      <h2>Sequence</h2>
-      <p>{{ sequenceStatusMessage }}</p>
-    </div>
+    </section>
   </section>
 
   <section class="modal-backdrop" *ngIf="combinationDialogMode === 'addCombination'" (click)="closeCombinationDialog()">
     <div class="modal-card" (click)="$event.stopPropagation()">
-      <h2>Add New Combination</h2>
+      <h2>Create Sequence</h2>
       <label>
         Part Number
         <input type="text" [ngModel]="partSearchText" name="modalPartNumber" readonly />
@@ -128,7 +518,7 @@
       <p class="modal-message" *ngIf="combinationSaveMessage">{{ combinationSaveMessage }}</p>
       <div class="modal-actions">
         <button type="button" (click)="closeCombinationDialog()">Cancel</button>
-        <button type="button" class="primary-action" (click)="saveNewCombination()">Save Combination</button>
+        <button type="button" class="primary-action" (click)="saveNewCombination()">Create Sequence</button>
       </div>
     </div>
   </section>
@@ -203,364 +593,6 @@
     </div>
   </section>
 
-  <section class="report-stack" aria-label="Non-NABL RT Report pages">
-    <article
-      #reportPage
-      class="rt-page"
-      *ngFor="let page of pages; let pageIndex = index; trackBy: trackByIndex"
-      [style.--upper-details-font-size]="upperDetailsFontSize + 'px'"
-      [style.--lower-table-scale]="lowerTableScale"
-      [style.--lower-details-font-size]="lowerDetailsFontSize + 'px'"
-    >
-      <div class="page-edit-tools">
-        <span>Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
-        <button type="button" (click)="addPage()">Add Page</button>
-        <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex)">Remove Page</button>
-      </div>
-
-      <header class="jia-letterhead">
-      </header>
-
-      <ng-container *ngIf="pageIndex === 0; else continuationPage">
-        <h2 class="report-title">Radiography Test Report</h2>
-
-        <section class="details-grid">
-          <div class="detail-row" *ngFor="let pair of detailPairs; let i = index; trackBy: trackByIndex">
-            <label>
-              <ng-container *ngIf="pair.customer && isSfdSelectorLabel(pair.customer.label); else customerLabelText">
-                <select
-                  class="label-select"
-                  [ngModel]="pair.customer.label"
-                  [name]="'customerLabelSelect' + i"
-                  (ngModelChange)="onSfdModeChange(pair.customer, $event)"
-                >
-                  <option value="S.F.D">S.F.D</option>
-                  <option value="F.F.D">F.F.D</option>
-                </select>
-              </ng-container>
-              <ng-template #customerLabelText>{{ pair.customer?.label }}</ng-template>
-            </label>
-            <ng-container *ngIf="pair.customer">
-              <ng-container *ngIf="dropdownKeyForLabel(pair.customer.label); else plainCustomerTextarea">
-                <div class="dropdown-with-other" [class.has-custom]="isOtherFieldSelected(pair.customer, dropdownKeyForLabel(pair.customer.label))">
-                  <select
-                    [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
-                    [ngModel]="dropdownSelection(dropdownKeyForLabel(pair.customer.label), pair.customer.value)"
-                    [name]="'customerFieldSelect' + i"
-                    (ngModelChange)="onDropdownSelection(pair.customer, dropdownKeyForLabel(pair.customer.label), $event)"
-                  >
-                    <option value="">Select</option>
-                    <option *ngFor="let option of settings.dropdowns[dropdownKeyForLabel(pair.customer.label)].options" [value]="option">{{ option }}</option>
-                    <option [value]="otherOption">Others</option>
-                  </select>
-                  <textarea
-                    *ngIf="isOtherFieldSelected(pair.customer, dropdownKeyForLabel(pair.customer.label))"
-                    [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
-                    [(ngModel)]="pair.customer.value"
-                    [name]="'customerFieldOther' + i"
-                    rows="1"
-                    placeholder="Enter custom value"
-                  ></textarea>
-                </div>
-              </ng-container>
-              <ng-template #plainCustomerTextarea>
-                <textarea
-                  [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
-                  [(ngModel)]="pair.customer.value"
-                  (ngModelChange)="onDetailChanged(pair.customer.label)"
-                  [name]="'customerField' + i"
-                  [rows]="i === 0 ? 2 : 1"
-                ></textarea>
-              </ng-template>
-            </ng-container>
-            <span class="empty-detail" *ngIf="!pair.customer"></span>
-
-            <label>
-              <ng-container *ngIf="pair.report && isExposureSelectorLabel(pair.report.label); else sourceSizeOrPlainLabel">
-                <select
-                  class="label-select"
-                  [ngModel]="pair.report.label === 'Exposure Time / KV & Ma' ? 'Exposure Time' : pair.report.label"
-                  [name]="'exposureMode' + i"
-                  (ngModelChange)="onExposureModeChange(pair.report, $event)"
-                >
-                  <option value="Exposure Time">Exposure Time</option>
-                  <option value="KV & Ma">KV & Ma</option>
-                </select>
-              </ng-container>
-              <ng-template #sourceSizeOrPlainLabel>
-                <ng-container *ngIf="pair.report && isSourceSizeSelectorLabel(pair.report.label); else sfdOrPlainLabel">
-                  <select
-                    class="label-select"
-                    [ngModel]="pair.report.label === 'Source Size / Focal Spot' ? 'Source Size' : pair.report.label"
-                    [name]="'sourceSizeMode' + i"
-                    (ngModelChange)="onSourceSizeModeChange(pair.report, $event)"
-                  >
-                    <option value="Source Size">Source Size</option>
-                    <option value="Focal Spot">Focal Spot</option>
-                  </select>
-                </ng-container>
-                <ng-template #sfdOrPlainLabel>
-                  <ng-container *ngIf="pair.report && isSfdSelectorLabel(pair.report.label); else plainReportLabel">
-                    <select
-                      class="label-select"
-                      [ngModel]="pair.report.label"
-                      [name]="'sfdMode' + i"
-                      (ngModelChange)="onSfdModeChange(pair.report, $event)"
-                    >
-                      <option value="S.F.D">S.F.D</option>
-                      <option value="F.F.D">F.F.D</option>
-                    </select>
-                  </ng-container>
-                </ng-template>
-              </ng-template>
-              <ng-template #plainReportLabel>{{ pair.report?.label }}</ng-template>
-            </label>
-            <ng-container *ngIf="pair.report">
-              <div
-                class="report-number-control"
-                *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'; else reportDateOrText"
-                [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
-              >
-                <span class="report-prefix">JIA /</span>
-                <input
-  type="text"
-  [ngModel]="reportNumberDigits"
-  name="reportNumberDigits"
-  (ngModelChange)="onReportDigitsChange($event)"
-/>
-              </div>
-              <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
-
-              <ng-template #reportDateOrText>
-                <ng-container *ngIf="getFieldControlType(pair.report.label) === 'issueDate'; else plainReportTextarea">
-                  <input
-                    class="date-picker"
-                    [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
-                    type="date"
-                    [(ngModel)]="issueDatePickerValue"
-                    [name]="'reportField' + i"
-                    (ngModelChange)="updateDate('Issue Date', $event)"
-                  />
-                </ng-container>
-                <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'issueDate'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
-              </ng-template>
-
-              <ng-template #plainReportTextarea>
-                <ng-container *ngIf="dropdownKeyForLabel(pair.report.label); else reportTextarea">
-                  <div class="dropdown-with-other" [class.has-custom]="isOtherFieldSelected(pair.report, dropdownKeyForLabel(pair.report.label))">
-                    <select
-                      [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
-                      [ngModel]="dropdownSelection(dropdownKeyForLabel(pair.report.label), pair.report.value)"
-                      [name]="'reportFieldSelect' + i"
-                      (ngModelChange)="onDropdownSelection(pair.report, dropdownKeyForLabel(pair.report.label), $event)"
-                    >
-                      <option value="">Select</option>
-                      <option *ngFor="let option of settings.dropdowns[dropdownKeyForLabel(pair.report.label)].options" [value]="option">{{ option }}</option>
-                      <option [value]="otherOption">Others</option>
-                    </select>
-                    <textarea
-                      *ngIf="isOtherFieldSelected(pair.report, dropdownKeyForLabel(pair.report.label))"
-                      [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
-                      [(ngModel)]="pair.report.value"
-                      [name]="'reportFieldOther' + i"
-                      rows="1"
-                      placeholder="Enter custom value"
-                    ></textarea>
-                  </div>
-                </ng-container>
-                <ng-template #reportTextarea>
-                  <textarea
-                    [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
-                    [(ngModel)]="pair.report.value"
-                    [name]="'reportField' + i"
-                    [rows]="i === 0 ? 2 : 1"
-                  ></textarea>
-                </ng-template>
-              </ng-template>
-            </ng-container>
-            <span class="empty-detail" *ngIf="!pair.report"></span>
-          </div>
-          <div class="detail-row density-sensitivity-row">
-            <label>Density</label>
-            <textarea [(ngModel)]="density" name="density" rows="1"></textarea>
-            <label>Sensitivity</label>
-            <textarea [(ngModel)]="sensitivity" name="sensitivity" rows="1"></textarea>
-          </div>
-          <div class="remarks-detail-row">
-            <label>Remarks</label>
-            <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
-          </div>
-        </section>
-      </ng-container>
-
-      <ng-template #continuationPage>
-        <section class="continuation-summary">
-          <div>
-            <strong>Company Name & Address</strong>
-            <span>{{ companyNameAndAddress }}</span>
-          </div>
-          <div>
-            <strong>Report No</strong>
-            <span>{{ fieldValue('Report No') }}</span>
-          </div>
-          <div>
-            <strong>Report Date</strong>
-            <span>{{ fieldValue('Report Date') }}</span>
-          </div>
-        </section>
-      </ng-template>
-
-      <section class="table-toolbar">
-        <button type="button" (click)="addRow(pageIndex)">Add Row</button>
-      </section>
-
-      <table class="rt-table">
-        <colgroup>
-          <col *ngFor="let width of tableColumnWidths; let columnIndex = index; trackBy: trackByIndex" [style.width]="tableColumnWidth(columnIndex)" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th *ngFor="let header of tableHeaders; let columnIndex = index; trackBy: trackByIndex">
-              <span class="table-header-label">{{ tableHeaderLabel(header) }}</span>
-              <button
-                type="button"
-                class="column-resize-handle"
-                *ngIf="columnIndex < tableHeaders.length - 1"
-                aria-label="Resize column"
-                (mousedown)="startColumnResize($event, columnIndex)"
-              ></button>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            *ngFor="let row of page.rows; let rowIndex = index; trackBy: trackByIndex"
-            [style.font-size]="rowFontSize(row)"
-          >
-            <td
-              class="sr-cell"
-              *ngIf="showSerialCell(pageIndex, rowIndex)"
-              [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)"
-            >
-              <button type="button" class="remove-row" aria-label="Remove row" (click)="removeRow(pageIndex, rowIndex)">-</button>
-              <button
-                type="button"
-                class="remove-row"
-                style="left: -9mm; top: 7mm;"
-                aria-label="Combine with next row"
-                *ngIf="canCombineRow(pageIndex, rowIndex)"
-                (click)="combineWithNext(pageIndex, rowIndex)"
-              >+</button>
-              <button
-                type="button"
-                class="remove-row"
-                style="left: -9mm; top: 13mm;"
-                aria-label="Uncombine row"
-                *ngIf="canUncombineRow(pageIndex, rowIndex)"
-                (click)="uncombineRow(pageIndex, rowIndex)"
-              >x</button>
-              <input
-                class="sr-no-input"
-                type="text"
-                [ngModel]="row.serialNo ?? serialNumber(pageIndex, rowIndex)"
-                [name]="'serialNo' + pageIndex + '-' + rowIndex"
-                (ngModelChange)="row.serialNo = $event"
-              />
-            </td>
-            <td
-              *ngIf="showFilmIdentificationCell(pageIndex, rowIndex)"
-              [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)"
-            >
-              <textarea
-                class="film-id-cell"
-                [(ngModel)]="row.description"
-                [name]="'desc' + pageIndex + '-' + rowIndex"
-                [rows]="filmIdentificationRows(row)"
-                [style.min-height]="filmIdentificationMinHeight(row)"
-              ></textarea>
-            </td>
-            <td><input [(ngModel)]="row.thickness" [name]="'thick' + pageIndex + '-' + rowIndex" /></td>
-            <td><input [(ngModel)]="row.segment" [name]="'segment' + pageIndex + '-' + rowIndex" /></td>
-            <td><input [(ngModel)]="row.filmSize" [name]="'filmSize' + pageIndex + '-' + rowIndex" /></td>
-            <td>
-              <textarea
-                class="row-observations"
-                [(ngModel)]="row.observations"
-                [name]="'obs' + pageIndex + '-' + rowIndex"
-                [rows]="observationRows(row)"
-                [style.min-height]="observationMinHeight(row)"
-              ></textarea>
-            </td>
-            <td>
-              <select [(ngModel)]="row.results" [name]="'results' + pageIndex + '-' + rowIndex">
-                <option value="Accepted">Accepted</option>
-                <option value="Not Accepted">Not Accepted</option>
-              </select>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="table-extension" aria-hidden="true"></div>
-
-      <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
-        <div class="abbreviation-row">
-          <strong>ABBREVIATION :</strong>
-          <textarea [(ngModel)]="abbreviationLeft" name="abbreviationLeft" rows="1"></textarea>
-          <textarea [(ngModel)]="abbreviationRight" name="abbreviationRight" rows="1"></textarea>
-        </div>
-
-        <section class="signature-grid">
-          <div>
-            <strong>Evaluated By</strong>
-            <span class="signature-person">
-              <select [(ngModel)]="evaluatedBy" name="evaluatedBy">
-                <option *ngFor="let option of settings.dropdowns['evaluatedBy'].options" [value]="option">{{ option }}</option>
-              </select>
-            </span>
-          </div>
-          <div>
-            <strong>Reviewed By</strong>
-            <span class="signature-person">
-              <select [(ngModel)]="reviewedBy" name="reviewedBy">
-                <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
-              </select>
-            </span>
-          </div>
-          <div>
-            <strong>for Client</strong>
-            <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
-          </div>
-        </section>
-
-        <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
-        <div class="end-report">**** &nbsp; End of Report &nbsp; ****</div>
-      </section>
-
-      <footer class="page-footer">
-        <span><input [(ngModel)]="footerPageLabel" name="footerPageLabel" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
-        <span><input [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
-        <span><input [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
-      </footer>
-
-      <div class="page-boundary-overlay" *ngIf="showPageBoundaries" aria-hidden="true">
-        <div
-          class="page-overflow-zone"
-          *ngIf="pageBoundaryState(pageIndex).hasOverflow"
-          [style.top.px]="pageBoundaryState(pageIndex).overflowTop"
-          [style.height.px]="pageBoundaryState(pageIndex).overflowHeight"
-        ></div>
-        <div
-          class="page-boundary-line"
-          *ngFor="let boundary of pageBoundaryState(pageIndex).pageBreaks; trackBy: trackByIndex"
-          [style.top.px]="boundary.top"
-        >
-          <span>End of Page {{ boundary.pageNumber }}</span>
-        </div>
-      </div>
-    </article>
-  </section>
-
   <div class="dialog-backdrop" *ngIf="dialogMode" role="presentation" (click)="closeDraftDialog()">
     <section
       class="draft-dialog"
@@ -576,29 +608,41 @@
         </h2>
       </div>
 
-        <p class="dialog-copy" *ngIf="dialogMode === 'save'">
-          This will store the current NABL RT Report as a named draft. If the name already exists, that draft will be replaced.
-        </p>
-        <p class="dialog-copy" *ngIf="dialogMode === 'load'">
-          Loading a draft will replace the report currently on screen. Any unsaved changes will be lost.
-        </p>
-
+      <p class="dialog-copy" *ngIf="dialogMode === 'save'">
+        This will store the current NABL RT Report as a named draft. If the name already exists, that draft will be replaced.
+      </p>
+      <p class="dialog-copy" *ngIf="dialogMode === 'load'">
+        Loading a draft will replace the report currently on screen. Any unsaved changes will be lost.
+      </p>
 
       <label class="dialog-field" *ngIf="dialogMode === 'save'">
         Draft name
         <input [(ngModel)]="draftDialogName" name="draftDialogName" placeholder="Example: RT Report 001" />
       </label>
 
-      <label class="dialog-field" *ngIf="dialogMode === 'load' && availableReports.length">
-        Select saved report
-        <select [(ngModel)]="selectedDraftToLoad" name="selectedDraftToLoad">
-          <option *ngFor="let report of availableReports" [value]="report.id">{{ report.report_no }} ({{ report.report_type }})</option>
-        </select>
-      </label>
+      <ng-container *ngIf="dialogMode === 'load'">
+        <label class="dialog-field" *ngIf="availableReports.length">
+          Select company
+          <select [(ngModel)]="selectedLoadCompany" name="selectedLoadCompany">
+            <option value="">All Companies</option>
+            <option *ngFor="let group of reportCompanyGroups" [value]="group.name">{{ group.name }}</option>
+          </select>
+        </label>
 
-      <p class="dialog-empty" *ngIf="dialogMode === 'load' && !availableReports.length">
-        No saved reports were found.
-      </p>
+        <label class="dialog-field" *ngIf="availableReports.length">
+          Select saved report
+          <select [(ngModel)]="selectedDraftToLoad" name="selectedDraftToLoad">
+            <option value="">Select report</option>
+            <option *ngFor="let report of filteredLoadReports" [value]="report.id">
+              {{ report.report_no }} ({{ report.customer_name || 'Others' }})
+            </option>
+          </select>
+        </label>
+
+        <p class="dialog-empty" *ngIf="!availableReports.length">
+          No saved reports were found.
+        </p>
+      </ng-container>
 
       <div class="dialog-actions">
         <button type="button" (click)="closeDraftDialog()">Cancel</button>
@@ -611,7 +655,6 @@
           {{ dialogMode === 'save' ? 'Save' : 'Load' }}
         </button>
       </div>
-
     </section>
   </div>
 
