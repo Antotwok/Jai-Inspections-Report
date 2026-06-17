@@ -1,0 +1,56 @@
+<main class="repository">
+  <header class="repo-header">
+    <div>
+      <p class="eyebrow">Report Repository</p>
+      <h1>Saved reports</h1>
+    </div>
+    <a routerLink="/">Dashboard</a>
+  </header>
+
+  <section class="filters">
+    <input [(ngModel)]="filters.q" placeholder="Search reports" />
+    <select [(ngModel)]="filters.reportType">
+      <option value="">All Types</option>
+      <option value="NABL">NABL</option>
+      <option value="NON_NABL">Non-NABL</option>
+    </select>
+    <select [(ngModel)]="filters.status">
+      <option value="">All Status</option>
+      <option value="DRAFT">DRAFT</option>
+      <option value="COMPLETED">COMPLETED</option>
+    </select>
+    <button type="button" (click)="loadReports()">Search</button>
+  </section>
+
+  <p *ngIf="message">{{ message }}</p>
+
+  <table class="repo-table">
+    <thead>
+      <tr>
+        <th>Report No</th>
+        <th>Customer</th>
+        <th>Part Number</th>
+        <th>Date Code</th>
+        <th>Report Type</th>
+        <th>Report Date</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let report of reports">
+        <td>{{ report.report_no }}</td>
+        <td>{{ report.customer_name }}</td>
+        <td>{{ report.part_number }}</td>
+        <td>{{ displayDateCode(report) }}</td>
+        <td>{{ report.report_type }}</td>
+        <td>{{ report.report_date || '-' }}</td>
+        <td>{{ report.status }}</td>
+        <td class="actions">
+          <button type="button" (click)="openReport(report)">Open</button>
+          <button type="button" (click)="deleteReport(report)">Delete</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</main>

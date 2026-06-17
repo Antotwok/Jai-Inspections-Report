@@ -10,8 +10,11 @@ import {
   ViewChildren
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { Customer, CustomerPart, CustomerService } from '../../../services/customer.service';
+import { ReportService, StoredReport } from '../../../services/report.service';
+import { environment } from '../../../../environments/environment';
 
 interface GenericRtRow {
   description: string;
@@ -109,11 +112,13 @@ type DropdownKey =
 
 type DraftDialogMode = 'save' | 'load' | '';
 type ConfirmDialogMode = 'update' | 'reset' | 'deleteDraft' | '';
+type CombinationDialogMode = '' | 'addCombination';
 
 
 const OTHER_OPTION = '__OTHERS__';
 const DEFAULT_TABLE_COLUMN_WIDTHS = [4.3, 27.6, 9.2, 9.2, 9.2, 9.2, 9.2, 9.2, 13.9];
 const MIN_TABLE_COLUMN_WIDTH = 4;
+const PAGE_BOUNDARY_OFFSET_PX = 10;
 const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
@@ -142,12 +147,20 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private otherFieldLabels = new Set<string>();
 
   showPageBoundaries = true;
+  showMenus = true;
+  showCustomerPartSelection = true;
   pageBoundaryStates: PageBoundaryState[] = [];
   settingsOpen = false;
+  saveStatusMessage = '';
+  saveStatusType: 'success' | 'error' | '' = '';
   dialogMode: DraftDialogMode = '';
   confirmMode: ConfirmDialogMode = '';
+  combinationDialogMode: CombinationDialogMode = '';
   draftDialogName = '';
   selectedDraftToLoad = '';
+  availableReports: StoredReport[] = [];
+  currentReportId: number | null = null;
+  nextReportNumber = '';
   validationMessage = '';
   tableColumnWidths = [...DEFAULT_TABLE_COLUMN_WIDTHS];
   readonly tableHeaders = ['Sr.\nNo', 'Description', 'Thick\nness', 'Segment', 'S.F.D', 'Density', 'Sensitivity', 'Film\nSize', 'Observations'];
@@ -163,15 +176,40 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   customerParts: CustomerPart[] = [];
   selectedCustomerId = '';
   selectedPartId = '';
+  selectedPartNumber = '';
+  selectedDateCode = '';
+  partSearchText = '';
+  dateCodeSearchText = '';
+  partNumberOptions: string[] = [];
+  dateCodeOptions: string[] = [];
+  nextAvailableSequence = '';
   filmGenerationMessage = '';
+  showStartingSequence = false;
+  startingSequence = 0;
+  sequenceMissingMessage = '';
+  combinationSaveMessage = '';
+  partNumberDatalistId = 'part-number-options';
+  dateCodeDatalistId = 'date-code-options';
 
   evaluatedByOptionsText = '';
   reviewedByOptionsText = '';
+  private saveStatusTimer?: number;
 
-  constructor(private customerService: CustomerService) {}
+  constructor(
+    private customerService: CustomerService,
+    private reportService: ReportService,
+    private route: ActivatedRoute,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
     this.loadCustomers();
+    void this.refreshPartNumberOptions();
+    void this.refreshNextReportNumber();
+    const reportId = Number(this.route.snapshot.queryParamMap.get('reportId'));
+    if (reportId) {
+      void this.loadReportFromServer(reportId);
+    }
   }
 
 
@@ -285,6 +323,16 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     return this.showPageBoundaries && this.pageBoundaryStates.some((state) => state.hasOverflow);
   }
 
+  get filteredPartNumberOptions(): string[] {
+    const term = this.partSearchText.trim().toLowerCase();
+    return this.partNumberOptions.filter((option) => option.toLowerCase().includes(term)).slice(0, 10);
+  }
+
+  get filteredDateCodeOptions(): string[] {
+    const term = this.dateCodeSearchText.trim().toLowerCase();
+    return this.dateCodeOptions.filter((option) => option.toLowerCase().includes(term)).slice(0, 10);
+  }
+
   ngAfterViewInit(): void {
     this.observeReportPages();
     this.reportPageElements.changes.subscribe(() => {
@@ -304,6 +352,9 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.resizeObserver?.disconnect();
     if (this.boundaryFrameId) {
       cancelAnimationFrame(this.boundaryFrameId);
+    }
+    if (this.saveStatusTimer) {
+      window.clearTimeout(this.saveStatusTimer);
     }
   }
 
@@ -355,8 +406,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     const html = `<!doctype html><html><head><base href="${location.origin}/">${styles}</head><body>${reportHtml}</body></html>`;
 
     try {
-      const apiBase = (window as any).__env?.API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiBase}/api/export-pdf`, {
+      const response = await fetch(`${environment.apiUrl}/export-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html })
@@ -419,15 +469,13 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   openSaveDialog(): void {
-    const fallbackName = this.fieldValue('Report No') || 'NABL RT Report';
-    this.draftDialogName = this.draftDialogName || fallbackName;
-    this.selectedDraftToLoad = '';
+    this.draftDialogName = this.fieldValue('Report No') || this.draftDialogName || 'NABL RT Report';
     this.dialogMode = 'save';
   }
 
   openUpdateDialog(): void {
-    if (!this.selectedDraftToLoad || this.selectedDraftToLoad === 'Last saved draft') {
-      this.validationMessage = 'Load a named draft before updating an existing record.';
+    if (!this.currentReportId) {
+      this.validationMessage = 'Load a saved report before updating an existing record.';
       return;
     }
 
@@ -435,14 +483,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   openLoadDialog(): void {
-    const options = this.savedDraftOptions;
-    if (!options.length) {
-      this.validationMessage = 'No saved drafts found.';
-      return;
-    }
-
-    this.selectedDraftToLoad = options[0];
     this.dialogMode = 'load';
+    void this.refreshAvailableReports();
   }
 
   closeDraftDialog(): void {
@@ -489,100 +531,112 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     const normalized = this.selectedDraftToLoad?.trim();
     if (!normalized) return;
 
-    const drafts = this.loadNamedDrafts();
-    if (!drafts[normalized]) return;
+    const reportId = Number(normalized);
+    if (!Number.isFinite(reportId)) {
+      this.validationMessage = 'Select a saved report to delete.';
+      return;
+    }
 
-    delete drafts[normalized];
-
-    // Remove the legacy "last saved draft" shadow entry if it points to this name.
-    // Also remove legacy shadow storage ("last saved draft" JSON) because it can point to stale data.
-    // Keeping it would cause confusing loads after deletion.
-    localStorage.removeItem(this.storageKey);
-
-    localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
-
-
-    this.selectedDraftToLoad = '';
-    this.validationMessage = `Draft "${normalized}" deleted successfully.`;
-    this.closeConfirmDialog();
-    this.closeDraftDialog();
+    void this.reportService.deleteReport(reportId).subscribe({
+      next: () => {
+        this.selectedDraftToLoad = '';
+        this.validationMessage = `Report #${reportId} deleted successfully.`;
+        this.closeConfirmDialog();
+        this.closeDraftDialog();
+        void this.refreshAvailableReports();
+      },
+      error: (error) => {
+        console.error('[report:delete:error]', error);
+        this.validationMessage = error?.error?.message || error?.message || 'Failed to delete report.';
+      }
+    });
   }
 
 
 
   confirmDraftDialog(): void {
     if (this.dialogMode === 'save') {
-      this.saveDraft();
+      void this.saveDraft();
       return;
     }
 
     if (this.dialogMode === 'load') {
-      this.loadDraft();
+      void this.loadDraft();
     }
   }
 
-  private saveDraft(): void {
+  private async saveDraft(): Promise<void> {
     const normalizedName = this.draftDialogName.trim();
     if (!normalizedName) {
-      this.validationMessage = 'Draft name is required.';
+      this.showSaveStatus('Draft name is required.', 'error');
       return;
     }
 
-    const drafts = this.loadNamedDrafts();
-
-    drafts[normalizedName] = this.createDraftSnapshot();
-    localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
-    localStorage.setItem(this.storageKey, JSON.stringify(drafts[normalizedName]));
-    this.selectedDraftToLoad = normalizedName;
-    this.closeDraftDialog();
-    void this.advanceSequenceAfterSave(`Draft "${normalizedName}" saved successfully.`);
+    try {
+      const payload = this.createReportPayload('NABL', 'DRAFT');
+      console.log('[report:save]', payload);
+      const saved = await firstValueFrom(this.reportService.createReport(payload));
+      this.currentReportId = saved.id;
+      this.selectedDraftToLoad = String(saved.id);
+      await this.refreshNextReportNumber();
+      await this.refreshNextAvailableSequence();
+      this.closeDraftDialog();
+      await this.router.navigate(['/reports']);
+      this.showSaveStatus(
+        this.nextAvailableSequence
+          ? `Report "${normalizedName}" saved successfully. Next Available Sequence: ${this.nextAvailableSequence}`
+          : `Report "${normalizedName}" saved successfully.`,
+        'success'
+      );
+    } catch (error: any) {
+      console.error('[report:save:error]', error);
+      this.showSaveStatus(error?.error?.message || error?.message || 'Failed to save report.', 'error');
+    }
   }
 
-  private updateExistingDraft(): void {
-    const drafts = this.loadNamedDrafts();
-    if (!this.selectedDraftToLoad || !drafts[this.selectedDraftToLoad]) {
-      this.validationMessage = 'Load a named draft before updating an existing record.';
+  private async updateExistingDraft(): Promise<void> {
+    if (!this.currentReportId) {
+      this.showSaveStatus('Load a report before updating an existing record.', 'error');
       return;
     }
 
-    drafts[this.selectedDraftToLoad] = this.createDraftSnapshot();
-    localStorage.setItem(this.namedDraftsStorageKey, JSON.stringify(drafts));
-    localStorage.setItem(this.storageKey, JSON.stringify(drafts[this.selectedDraftToLoad]));
-    void this.advanceSequenceAfterSave(`Draft "${this.selectedDraftToLoad}" updated successfully.`);
+    try {
+      const payload = this.createReportPayload('NABL', 'DRAFT');
+      console.log('[report:update]', { reportId: this.currentReportId, payload });
+      await firstValueFrom(this.reportService.updateReport(this.currentReportId, payload));
+      await this.refreshNextAvailableSequence();
+      await this.router.navigate(['/reports']);
+      this.showSaveStatus(
+        this.nextAvailableSequence
+          ? `Report "${this.fieldValue('Report No')}" updated successfully. Next Available Sequence: ${this.nextAvailableSequence}`
+          : `Report "${this.fieldValue('Report No')}" updated successfully.`,
+        'success'
+      );
+    } catch (error: any) {
+      console.error('[report:update:error]', error);
+      this.showSaveStatus(error?.error?.message || error?.message || 'Failed to update report.', 'error');
+    }
   }
 
-  private loadDraft(): void {
-    const drafts = this.loadNamedDrafts();
-    const legacyDraft = localStorage.getItem(this.storageKey);
-
-    if (!this.selectedDraftToLoad) {
-      this.validationMessage = 'Select a draft to load.';
+  private async loadDraft(): Promise<void> {
+    const selected = this.selectedDraftToLoad?.trim();
+    if (!selected) {
+      this.validationMessage = 'Select a report to load.';
       return;
     }
 
-    if (!Object.keys(drafts).length && !legacyDraft) {
-      this.validationMessage = 'No saved drafts found.';
-      return;
-    }
-
-    let draft: Partial<GenericRtDraft> | undefined;
-    if (this.selectedDraftToLoad === 'Last saved draft' && legacyDraft) {
-      draft = JSON.parse(legacyDraft) as Partial<GenericRtDraft>;
-      this.validationMessage = 'Last saved draft loaded.';
-    } else {
-      draft = drafts[this.selectedDraftToLoad];
-      if (!draft) {
-        this.validationMessage = 'Draft name not found.';
+    try {
+      const reportId = Number(selected);
+      if (!Number.isFinite(reportId)) {
+        this.validationMessage = 'Select a valid saved report.';
         return;
       }
-      this.validationMessage = `Draft "${this.selectedDraftToLoad}" loaded.`;
+      await this.loadReportFromServer(reportId);
+      this.closeDraftDialog();
+    } catch (error: any) {
+      console.error('[report:load:error]', error);
+      this.validationMessage = error?.error?.message || error?.message || 'Failed to load report.';
     }
-
-    if (!draft) return;
-
-    this.applyDraft(draft);
-    this.closeDraftDialog();
-    this.schedulePageBoundaryUpdate();
   }
 
   private applyDraft(draft: Partial<GenericRtDraft>): void {
@@ -618,6 +672,110 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       this.todayIso();
     this.updateDate('Item Receipt Date', this.itemReceiptDateTimePickerValue);
     this.otherFieldLabels.clear();
+  }
+
+  private async refreshAvailableReports(): Promise<void> {
+    try {
+      this.availableReports = await firstValueFrom(this.reportService.listReports({ reportType: 'NABL' }));
+      const currentSelection = this.availableReports.find((report) => String(report.id) === this.selectedDraftToLoad);
+      this.selectedDraftToLoad = currentSelection ? String(currentSelection.id) : this.availableReports[0] ? String(this.availableReports[0].id) : '';
+      if (!this.availableReports.length) {
+        this.validationMessage = 'No saved reports found.';
+      }
+    } catch (error: any) {
+      console.error('[report:list:error]', error);
+      this.validationMessage = error?.error?.message || error?.message || 'Failed to load report list.';
+    }
+  }
+
+  private async loadReportFromServer(reportId: number): Promise<void> {
+    console.log('[report:load]', { reportId });
+    const report = await firstValueFrom(this.reportService.getReport(reportId));
+    this.currentReportId = report.id;
+    const draft = this.parseReportJson<Partial<GenericRtDraft>>(report.report_json) ?? {};
+    if (!draft.pages?.length && Array.isArray(report.report_rows)) {
+      draft.pages = [{ rows: report.report_rows.map((row: any) => row.row_data ?? row.row ?? row) }];
+    }
+    this.applyDraft(draft);
+    this.restoreSavedCustomerAndPart(report);
+    this.showSaveStatus(`Report "${report.report_no}" loaded.`, 'success');
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { reportId: report.id },
+      queryParamsHandling: 'merge'
+    });
+  }
+
+  private parseReportJson<T>(value: unknown): T | null {
+    if (!value) return null;
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof value === 'object') {
+      return value as T;
+    }
+    return null;
+  }
+
+  private createReportPayload(reportType: 'NABL' | 'NON_NABL', status: 'DRAFT' | 'COMPLETED') {
+    const snapshot = this.createDraftSnapshot();
+    const selectedCustomer = this.getSelectedCustomer();
+    const selectedPart = this.getSelectedPart();
+    const rows = this.pages.flatMap((page, pageIndex) =>
+      page.rows.map((row, rowIndex) => ({
+        row_order: pageIndex * 1000 + rowIndex,
+        row,
+        film_identification: row.description,
+        thickness: row.thickness,
+        segment: row.segment,
+        film_size: row.filmSize,
+        observation: row.observations,
+        result: ''
+      }))
+    );
+
+    return {
+      report_type: reportType,
+      report_no: this.fieldValue('Report No'),
+      customer_id: selectedCustomer ? Number(selectedCustomer.id) : (this.selectedCustomerId ? Number(this.selectedCustomerId) : null),
+      customer_name: selectedCustomer?.customer_name || this.extractCustomerNameFromField(),
+      part_id: selectedPart ? Number(selectedPart.id) : (this.selectedPartId ? Number(this.selectedPartId) : null),
+      part_number: selectedPart?.part_number || this.fieldValue('Part No *'),
+      date_code: this.selectedDateCode || null,
+      film_prefix: selectedPart?.film_prefix || null,
+      film_series: selectedPart?.film_series || null,
+      sequence_start: this.extractMaxSequence(rows),
+      sequence_end: this.extractMaxSequence(rows),
+      report_date: this.parseDisplayDate(this.fieldValue('Issue Date')) || null,
+      inspection_date: this.parseDisplayDate(this.fieldValue('Date of Examination')) || null,
+      status,
+      report_json: {
+        ...snapshot,
+        customerId: selectedCustomer ? Number(selectedCustomer.id) : (this.selectedCustomerId ? Number(this.selectedCustomerId) : null),
+        customerName: selectedCustomer?.customer_name || this.extractCustomerNameFromField(),
+        partId: selectedPart ? Number(selectedPart.id) : (this.selectedPartId ? Number(this.selectedPartId) : null),
+        partNumber: selectedPart?.part_number || this.fieldValue('Part No *'),
+        dateCode: this.selectedDateCode || null,
+        reportType,
+        reportNo: this.fieldValue('Report No'),
+        reportRows: rows
+      },
+      report_rows: rows
+    };
+  }
+
+  private async refreshNextReportNumber(): Promise<void> {
+    try {
+      const result = await firstValueFrom(this.reportService.getNextReportNumber({ reportType: 'NABL' }));
+      this.nextReportNumber = result?.next_report_no || '';
+      this.setFieldValue('Report No', this.nextReportNumber);
+    } catch (error) {
+      console.error('[report:next-number:error]', error);
+    }
   }
 
   resetDraft(): void {
@@ -773,7 +931,12 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   onCustomerSelection(customerId: string): void {
     this.selectedCustomerId = customerId;
     this.selectedPartId = '';
+    this.selectedPartNumber = '';
+    this.selectedDateCode = '';
+    this.partSearchText = '';
+    this.dateCodeSearchText = '';
     this.customerParts = [];
+    void this.refreshNextReportNumber();
 
     if (!customerId) {
       return;
@@ -788,35 +951,177 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.customerService.getParts(Number(customerId)).subscribe({
       next: (parts) => {
         this.customerParts = parts;
+        void this.refreshPartNumberOptions();
       }
     });
   }
 
-  onPartSelection(partId: string): void {
-    this.selectedPartId = partId;
-    if (!partId) return;
-
-    const part = this.customerParts.find((item) => String(item.id) === partId);
-    if (!part) return;
-
-    this.setFieldValue('Part Name *', part.part_name || '');
-    this.setFieldValue('Part No *', part.part_number || '');
-    this.setFieldValue('Drawing No. *', part.drawing_number || '');
-    this.setFieldValue('Material', part.material || 'SG CAST IRON');
-    this.setFieldValue('Acceptance Std. *', part.acceptance_standard || this.dropdownDefault('acceptanceStandard'));
-    this.refreshGeneratedDescriptions();
-    this.schedulePageBoundaryUpdate();
-  }
-
-  autoGenerateFilmIds(): void {
-    const part = this.getSelectedPart();
-    if (!part?.part_number) {
-      this.filmGenerationMessage = 'Select a customer and part number first.';
+  onPartSelection(partNumber: string): void {
+    this.selectedPartNumber = partNumber.trim();
+    this.partSearchText = this.selectedPartNumber;
+    this.selectedPartId = '';
+    if (!this.selectedPartNumber) {
+      this.nextAvailableSequence = '';
+      this.showStartingSequence = false;
+      this.sequenceMissingMessage = '';
       return;
     }
 
-    const startNumber = Number(part.current_film_number ?? 0);
-    let nextSequence = Number.isFinite(startNumber) ? startNumber + 1 : 1;
+    const part = this.customerParts.find((item) => item.part_number === this.selectedPartNumber);
+    if (part) {
+      this.selectedPartId = String(part.id ?? '');
+      this.setFieldValue('Part Name *', part.part_name || '');
+      this.setFieldValue('Drawing No. *', part.drawing_number || '');
+      this.setFieldValue('Material', part.material || 'SG CAST IRON');
+      this.setFieldValue('Acceptance Std. *', part.acceptance_standard || this.dropdownDefault('acceptanceStandard'));
+    }
+    this.setFieldValue('Part No *', this.selectedPartNumber);
+    this.refreshGeneratedDescriptions();
+    void this.refreshDateCodesForPart(this.selectedPartNumber);
+    if (this.selectedDateCode) {
+      void this.loadSequenceForSelection(this.selectedPartNumber, this.selectedDateCode);
+    } else {
+      this.loadSequenceForSelection(this.selectedPartNumber, '');
+    }
+    this.schedulePageBoundaryUpdate();
+  }
+
+  onDateCodeSelection(dateCode: string): void {
+    this.selectedDateCode = dateCode.trim();
+    this.dateCodeSearchText = this.selectedDateCode;
+    if (!this.selectedDateCode) {
+      this.nextAvailableSequence = '';
+      this.showStartingSequence = false;
+      this.sequenceMissingMessage = '';
+      return;
+    }
+    if (!this.selectedPartNumber) return;
+    void this.loadSequenceForSelection(this.selectedPartNumber, this.selectedDateCode);
+  }
+
+  onStartingSequenceChange(value: number | string): void {
+    const parsed = Number(value);
+    this.startingSequence = Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+    this.nextAvailableSequence = `J${String(this.startingSequence + 1).padStart(3, '0')}`;
+  }
+
+  openAddCombinationDialog(): void {
+    this.combinationDialogMode = 'addCombination';
+    this.startingSequence = Number.isFinite(this.startingSequence) && this.startingSequence >= 0 ? Math.floor(this.startingSequence) : 0;
+    this.combinationSaveMessage = '';
+  }
+
+  closeCombinationDialog(): void {
+    this.combinationDialogMode = '';
+    this.combinationSaveMessage = '';
+  }
+
+  async saveNewCombination(): Promise<void> {
+    const partNumber = this.selectedPartNumber.trim();
+    const dateCode = this.selectedDateCode.trim();
+    if (!partNumber || !dateCode) {
+      this.showSaveStatus('Select a part number and date code first.', 'error');
+      this.combinationSaveMessage = 'Select a part number and date code first.';
+      return;
+    }
+
+    try {
+      await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
+      this.combinationSaveMessage = 'Combination created successfully.';
+      this.showSaveStatus('Combination created successfully.', 'success');
+      this.closeCombinationDialog();
+      await this.loadSequenceForSelection(partNumber, dateCode);
+      await this.refreshPartNumberOptions();
+      await this.refreshDateCodesForPart(partNumber);
+    } catch (error: any) {
+      console.error('[part-datecode:create:error]', error);
+      const message = error?.error?.message || error?.message || 'Failed to create combination.';
+      this.combinationSaveMessage = message;
+      this.showSaveStatus(message, 'error');
+    }
+  }
+
+  private getSelectedCustomer(): Customer | undefined {
+    if (!this.selectedCustomerId) return undefined;
+    return this.customers.find((item) => String(item.id) === this.selectedCustomerId);
+  }
+
+  private extractCustomerNameFromField(): string {
+    const value = this.fieldValue('Customer Name & Address *');
+    return value.split('\n').map((line) => line.trim()).find(Boolean) || '';
+  }
+
+  private restoreSavedCustomerAndPart(report: StoredReport): void {
+    const reportJson = (report.report_json as any) || {};
+    const customerId = report.customer_id ?? reportJson.customerId ?? null;
+    const partId = report.part_id ?? reportJson.partId ?? null;
+    const customerName = report.customer_name || reportJson.customerName || this.extractCustomerNameFromField();
+    const partNumber = report.part_number || reportJson.partNumber || this.fieldValue('Part No *');
+    const dateCode = (report as any).date_code || reportJson.dateCode || reportJson.date_code || '';
+
+    if (customerId) {
+      this.selectedCustomerId = String(customerId);
+    } else if (customerName) {
+      const customer = this.customers.find((item) => item.customer_name === customerName);
+      if (customer) this.selectedCustomerId = String(customer.id);
+    }
+
+    const selectedCustomer = this.getSelectedCustomer();
+    if (selectedCustomer) {
+      const customerText = [selectedCustomer.customer_name, selectedCustomer.customer_address].filter(Boolean).join('\n');
+      this.setFieldValue('Customer Name & Address *', customerText);
+      this.customerFields[0].value = customerText;
+      this.setFieldValue('Principal Customer *', selectedCustomer.customer_name);
+    }
+
+    if (!this.selectedCustomerId) {
+      if (partId) this.selectedPartId = String(partId);
+      return;
+    }
+
+    this.customerService.getParts(Number(this.selectedCustomerId)).subscribe({
+      next: (parts) => {
+        this.customerParts = parts;
+        const selectedPart = (partId && parts.find((part) => String(part.id) === String(partId))) ||
+          parts.find((part) => part.part_number === partNumber) ||
+          parts[0];
+        if (selectedPart) {
+          this.selectedPartId = String(selectedPart.id);
+          this.selectedPartNumber = selectedPart.part_number || partNumber || '';
+          this.partSearchText = this.selectedPartNumber;
+          this.setFieldValue('Part Name *', selectedPart.part_name || '');
+          this.setFieldValue('Part No *', selectedPart.part_number || '');
+          this.setFieldValue('Drawing No. *', selectedPart.drawing_number || '');
+          this.setFieldValue('Material', selectedPart.material || 'SG CAST IRON');
+          this.setFieldValue('Acceptance Std. *', selectedPart.acceptance_standard || this.dropdownDefault('acceptanceStandard'));
+          this.refreshGeneratedDescriptions();
+        }
+        this.selectedDateCode = dateCode || this.selectedDateCode;
+        this.dateCodeSearchText = this.selectedDateCode;
+        if (this.selectedPartNumber && this.selectedDateCode) {
+          void this.loadSequenceForSelection(this.selectedPartNumber, this.selectedDateCode);
+        }
+        void this.refreshPartNumberOptions();
+      }
+    });
+  }
+
+  async autoGenerateFilmIds(): Promise<void> {
+    const partNumber = this.selectedPartNumber || this.fieldValue('Part No *') || this.getSelectedPart()?.part_number || '';
+    const dateCode = this.selectedDateCode || '';
+    if (!partNumber || !dateCode) {
+      this.filmGenerationMessage = 'Select a part number and date code first.';
+      return;
+    }
+
+    if (!this.nextAvailableSequence) {
+      this.filmGenerationMessage = 'No sequence exists for this Part Number and Date Code.';
+      this.sequenceMissingMessage = this.filmGenerationMessage;
+      return;
+    }
+
+    const startNumber = Number(this.nextAvailableSequence.replace(/\D+/g, '') || 0);
+    let nextSequence = Number.isFinite(startNumber) && startNumber > 0 ? startNumber : 1;
 
     this.pages.forEach((page) => {
       page.rows.forEach((row, index) => {
@@ -826,7 +1131,9 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
         }
 
         const sequence = String(nextSequence).padStart(3, '0');
-        row.description = `${part.part_number}-${row.segment || ''}-${row.thickness || ''}-${part.film_prefix || ''}-${(part.film_series || 'J')}${sequence}`;
+        const previousDescription = page.rows[index - 1]?.description || '';
+        const middleValue = this.extractMiddleValue(row.description || previousDescription);
+        row.description = `${partNumber}-${middleValue}-${dateCode}-J${sequence}`;
         nextSequence += 1;
       });
     });
@@ -848,6 +1155,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       setting.defaultValue = setting.options[0] ?? '';
     }
     this.persistSettings();
+    this.showSaveStatus('Settings saved successfully.', 'success');
   }
 
   moveDropdownOption(key: string, index: number, direction: -1 | 1): void {
@@ -871,6 +1179,18 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   persistSettings(): void {
     localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
     this.applyDefaultValuesToBlankFields();
+  }
+
+  private showSaveStatus(message: string, type: 'success' | 'error'): void {
+    this.saveStatusMessage = message;
+    this.saveStatusType = type;
+    if (this.saveStatusTimer) {
+      window.clearTimeout(this.saveStatusTimer);
+    }
+    this.saveStatusTimer = window.setTimeout(() => {
+      this.saveStatusMessage = '';
+      this.saveStatusType = '';
+    }, 3500);
   }
 
   fieldValue(label: string): string {
@@ -961,7 +1281,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       const occupiedHeight = Math.max(element.scrollHeight, rect.height);
       const pageBreakCount = Math.max(1, Math.ceil(occupiedHeight / a4PageHeight));
       const pageBreaks = Array.from({ length: pageBreakCount }, (_, index) => ({
-        top: Math.round(a4PageHeight * (index + 1)),
+        top: Math.max(0, Math.round(a4PageHeight * (index + 1)) - PAGE_BOUNDARY_OFFSET_PX),
         pageNumber: physicalPageNumber + index
       }));
       const hasOverflow = occupiedHeight > a4PageHeight + 1;
@@ -1052,10 +1372,12 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private getSelectedPart(): CustomerPart | undefined {
+    if (this.selectedPartNumber) {
+      return this.customerParts.find((part) => part.part_number === this.selectedPartNumber);
+    }
     if (!this.selectedPartId) {
       return this.customerParts[0];
     }
-
     return this.customerParts.find((part) => String(part.id) === this.selectedPartId);
   }
 
@@ -1066,26 +1388,90 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       .filter((value): value is string => Boolean(value));
   }
 
-  private async advanceSequenceAfterSave(baseMessage: string): Promise<void> {
-    const customerId = Number(this.selectedCustomerId);
-    const partNumber = this.selectedPartId
-      ? (this.customerParts.find((part) => String(part.id) === this.selectedPartId)?.part_number || '')
-      : '';
+  private loadSequenceForSelection(partNumber: string, dateCode: string): void {
+    if (!partNumber || !dateCode) {
+      this.nextAvailableSequence = '';
+      this.showStartingSequence = false;
+      this.sequenceMissingMessage = '';
+      return;
+    }
+    this.customerService.getPartDateCodeSequence(partNumber, dateCode).subscribe({
+      next: (sequence) => {
+        this.nextAvailableSequence = sequence?.exists ? (sequence?.next_available_sequence || '') : '';
+        this.showStartingSequence = sequence?.exists === false;
+        this.sequenceMissingMessage = sequence?.exists === false ? 'No sequence exists for this Part Number and Date Code.' : '';
+        if (this.showStartingSequence && !Number.isFinite(this.startingSequence)) {
+          this.startingSequence = 0;
+        }
+        if (!this.showStartingSequence) {
+          this.startingSequence = Number(sequence?.current_sequence ?? 0);
+        }
+      }
+    });
+  }
 
-    if (!customerId || !partNumber) {
-      this.validationMessage = baseMessage;
+  private async refreshPartNumberOptions(): Promise<void> {
+    try {
+      this.partNumberOptions = await firstValueFrom(this.customerService.listPartNumbers());
+    } catch (error) {
+      console.error('[part-number:list:error]', error);
+    }
+  }
+
+  private async refreshNextAvailableSequence(): Promise<void> {
+    const partNumber = this.selectedPartNumber || this.getSelectedPart()?.part_number || '';
+    const dateCode = this.selectedDateCode || '';
+
+    if (!partNumber || !dateCode) {
+      this.nextAvailableSequence = '';
       return;
     }
 
     try {
-      const result = await firstValueFrom(
-        this.customerService.advanceSequence(customerId, partNumber, this.collectFilmIdentifications())
-      );
-      this.validationMessage = result?.message ? `${baseMessage} ${result.message}` : `${baseMessage} Sequence updated.`;
-    } catch (error: any) {
-      const message = error?.error?.message || 'Failed to update sequence.';
-      this.validationMessage = `${baseMessage} ${message}`;
+      const sequence = await firstValueFrom(this.customerService.getPartDateCodeSequence(partNumber, dateCode));
+      this.nextAvailableSequence = sequence?.next_available_sequence || '';
+    } catch (error) {
+      console.error('[sequence:refresh:error]', error);
     }
+  }
+
+  private async refreshDateCodesForPart(partNumber: string): Promise<void> {
+    if (!partNumber) {
+      this.dateCodeOptions = [];
+      return;
+    }
+    this.dateCodeOptions = await firstValueFrom(this.customerService.listDateCodes(partNumber));
+  }
+
+  private extractMaxSequence(rows: Array<{ film_identification?: string; filmIdentification?: string }>): number | null {
+    const values = rows
+      .map((row) => String(row.film_identification || row.filmIdentification || ''))
+      .map((value) => /([0-9]+)$/.exec(value)?.[1])
+      .filter((value): value is string => Boolean(value))
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+
+    return values.length ? Math.max(...values) : null;
+  }
+
+  private extractMiddleValue(filmIdentification: string): string {
+    const value = String(filmIdentification || '').trim();
+    if (!value) return ' ';
+
+    const dateCode = this.selectedDateCode || '';
+    if (dateCode) {
+      const marker = `-${dateCode}-`;
+      const markerIndex = value.indexOf(marker);
+      if (markerIndex > 0) {
+        const middle = value.slice(value.indexOf('-') + 1, markerIndex);
+        return middle;
+      }
+    }
+
+    const firstDash = value.indexOf('-');
+    const lastDash = value.lastIndexOf('-');
+    if (firstDash < 0 || lastDash <= firstDash) return ' ';
+    return value.slice(firstDash + 1, lastDash);
   }
 
   private createFilmGroupId(): string {

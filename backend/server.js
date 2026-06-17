@@ -4,7 +4,7 @@ const puppeteer = require('puppeteer');
 const path = require('path');
 const dotenv = require('dotenv');
 const { pool } = require('./database/db');
-const { ensureCustomersTable, ensureCustomerPartsTable, ensureCustomerPartSequencesTable } = require('./database/init');
+const { ensureCustomersTable, ensureCustomerPartsTable, ensureCustomerPartSequencesTable, ensurePartDateCodeSequencesTable, ensureReportsTable } = require('./database/init');
 const {
   getCustomers,
   getCustomerById,
@@ -28,6 +28,22 @@ const {
   deleteSequence,
   advanceSequenceFromReport
 } = require('./controllers/customerSequenceController');
+const {
+  listReports,
+  getReportById,
+  getNablReportCounter,
+  createReport,
+  updateReport,
+  deleteReport,
+  getReportForEditor
+} = require('./controllers/reportController');
+const {
+  listPartNumbers,
+  listDateCodes,
+  ensureRelationship,
+  getSequence,
+  advanceSequence
+} = require('./controllers/partDateCodeController');
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
@@ -58,6 +74,19 @@ app.post('/api/customer-part-sequences', createSequence);
 app.put('/api/customer-part-sequences/:id', updateSequence);
 app.delete('/api/customer-part-sequences/:id', deleteSequence);
 app.post('/api/customer-part-sequences/advance', advanceSequenceFromReport);
+app.get('/api/part-datecodes/parts', listPartNumbers);
+app.get('/api/part-datecodes/date-codes', listDateCodes);
+app.post('/api/part-datecodes', ensureRelationship);
+app.get('/api/part-datecodes/sequence', getSequence);
+app.post('/api/part-datecodes/advance', advanceSequence);
+app.get('/api/part-datecodes', (req, res) => res.json({ ok: true }));
+app.get('/api/reports', listReports);
+app.get('/api/reports/next-number', getNablReportCounter);
+app.get('/api/reports/:id', getReportById);
+app.get('/api/reports/:id/editor', getReportForEditor);
+app.post('/api/reports', createReport);
+app.put('/api/reports/:id', updateReport);
+app.delete('/api/reports/:id', deleteReport);
 
 app.post('/api/export-pdf', async (req, res) => {
   const { html } = req.body || {};
@@ -101,6 +130,16 @@ async function startServer() {
     await ensureCustomersTable();
     await ensureCustomerPartsTable();
     await ensureCustomerPartSequencesTable();
+    await ensurePartDateCodeSequencesTable();
+    await ensureReportsTable();
+
+    console.log('Mounted part-datecodes routes:',
+      '/api/part-datecodes/parts',
+      '/api/part-datecodes/date-codes',
+      '/api/part-datecodes',
+      '/api/part-datecodes/sequence',
+      '/api/part-datecodes/advance'
+    );
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);

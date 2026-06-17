@@ -1,0 +1,12 @@
+:host { display:block; min-height:100vh; background:#eef2f1; color:#17211e; }
+.repository { max-width:1200px; margin:0 auto; padding:40px 24px; }
+.repo-header { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.eyebrow { margin:0 0 6px; color:#146348; font-size:12px; font-weight:900; text-transform:uppercase; }
+h1 { margin:0; font-size:clamp(30px,4vw,52px); }
+.filters { display:flex; gap:12px; flex-wrap:wrap; margin:24px 0; }
+.filters input,.filters select { min-height:40px; padding:0 12px; border:1px solid #cfd7d3; border-radius:8px; background:#fff; }
+.repo-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #d8dfdc; }
+.repo-table th,.repo-table td { padding:12px; border-bottom:1px solid #e7ecea; text-align:left; }
+.actions { display:flex; gap:10px; }
+.actions a,.actions button,.repo-header a { display:inline-flex; align-items:center; min-height:40px; padding:0 14px; border-radius:8px; border:1px solid #146348; background:#146348; color:#fff; text-decoration:none; }
+.actions button { cursor:pointer; }

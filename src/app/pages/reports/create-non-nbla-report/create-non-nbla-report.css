@@ -237,6 +237,29 @@ button:disabled {
   font-size: 12px;
 }
 
+.save-status-message {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.save-status-message.success {
+  border-color: #b7dfcf;
+  background: #effaf5;
+  color: #0f6b56;
+}
+
+.save-status-message.error {
+  border-color: var(--danger-border);
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
 /* ── Settings panel ── */
 .settings-panel {
   display: grid;

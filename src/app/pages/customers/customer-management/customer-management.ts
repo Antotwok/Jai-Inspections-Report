@@ -90,6 +90,7 @@ export class CustomerManagementComponent implements OnInit {
     const payload = {
       ...this.customer,
       customer_code: this.customer.customer_code.trim(),
+      current_report_number: Number(this.customer.current_report_number ?? 0) || 0,
       customer_name: this.customer.customer_name.trim()
     };
 
@@ -131,9 +132,15 @@ export class CustomerManagementComponent implements OnInit {
     return customer.id;
   }
 
+  formatReportNumber(value: number | string | null | undefined): string {
+    const number = Number(value ?? 0);
+    return String(Number.isFinite(number) ? number : 0).padStart(4, '0');
+  }
+
   private emptyCustomer(): Customer {
     return {
       customer_code: '',
+      current_report_number: 0,
       customer_name: '',
       customer_address: '',
       gst_number: '',

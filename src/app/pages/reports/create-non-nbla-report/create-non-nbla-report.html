@@ -4,10 +4,18 @@
       <p class="eyebrow">Non-NABL RT Report</p>
       <h1>Radiography Test Report</h1>
     </div>
-    <a class="home-link" href="/">Dashboard</a>
+    <div class="header-actions">
+      <button type="button" (click)="showMenus = !showMenus">
+        {{ showMenus ? 'Hide Menus' : 'Show Menus' }}
+      </button>
+      <button type="button" (click)="showCustomerPartSelection = !showCustomerPartSelection">
+        {{ showCustomerPartSelection ? 'Hide Customer/Part' : 'Show Customer/Part' }}
+      </button>
+      <a class="home-link" href="/">Dashboard</a>
+    </div>
   </header>
 
-  <section class="page-controls" aria-label="Page controls">
+  <section class="page-controls" *ngIf="showMenus" aria-label="Page controls">
     <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
     <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
     <button type="button" [disabled]="!canUndo" (click)="undo()">Undo</button>
@@ -44,13 +52,16 @@
       Show Page Boundaries
     </label>
     <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
+    <span class="save-status-message" *ngIf="saveStatusMessage" [class.success]="saveStatusType === 'success'" [class.error]="saveStatusType === 'error'">
+      {{ saveStatusMessage }}
+    </span>
     <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
     <span class="page-overflow-warning" *ngIf="hasPageBoundaryOverflow">
       Content below the red line will move to Page 2 when printed or exported.
     </span>
   </section>
 
-  <section class="settings-panel customer-connector" aria-label="Customer and part selection">
+  <section class="settings-panel customer-connector" *ngIf="showCustomerPartSelection" aria-label="Customer and part selection">
     <div class="settings-column">
       <h2>Customer</h2>
       <select [ngModel]="selectedCustomerId" name="selectedCustomerId" (ngModelChange)="onCustomerSelection($event)">
@@ -60,14 +71,65 @@
     </div>
     <div class="settings-column">
       <h2>Part</h2>
-      <select [ngModel]="selectedPartId" name="selectedPartId" (ngModelChange)="onPartSelection($event)">
-        <option value="">Select part</option>
-        <option *ngFor="let part of customerParts" [value]="part.id">{{ part.part_number || 'Part Number' }}</option>
-      </select>
+      <input
+        [(ngModel)]="partSearchText"
+        name="partSearchText"
+        placeholder="Search or type part number"
+        (ngModelChange)="onPartSelection($event)"
+      />
+      <div class="autocomplete-list" *ngIf="partSearchText.trim()">
+        <button type="button" *ngFor="let partNumber of filteredPartNumberOptions" (click)="partSearchText = partNumber; onPartSelection(partNumber)">
+          {{ partNumber }}
+        </button>
+      </div>
+    </div>
+    <div class="settings-column">
+      <h2>Date Code</h2>
+      <input
+        [(ngModel)]="dateCodeSearchText"
+        name="dateCodeSearchText"
+        placeholder="Search or type date code"
+        (ngModelChange)="onDateCodeSelection($event)"
+      />
+      <div class="autocomplete-list" *ngIf="dateCodeSearchText.trim()">
+        <button type="button" *ngFor="let dateCode of filteredDateCodeOptions" (click)="dateCodeSearchText = dateCode; onDateCodeSelection(dateCode)">
+          {{ dateCode }}
+        </button>
+      </div>
+      <div class="sequence-inline" *ngIf="nextAvailableSequence">
+        Next Available Sequence: {{ nextAvailableSequence }}
+      </div>
+      <p class="sequence-missing" *ngIf="sequenceStatusMessage">{{ sequenceStatusMessage }}</p>
+      <button type="button" class="primary-action" *ngIf="showStartingSequence || sequenceStatusMessage" (click)="openAddCombinationDialog()">
+        Add New Combination
+      </button>
     </div>
     <div class="settings-column" *ngIf="sequenceStatusMessage">
       <h2>Sequence</h2>
       <p>{{ sequenceStatusMessage }}</p>
+    </div>
+  </section>
+
+  <section class="modal-backdrop" *ngIf="combinationDialogMode === 'addCombination'" (click)="closeCombinationDialog()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <h2>Add New Combination</h2>
+      <label>
+        Part Number
+        <input type="text" [ngModel]="partSearchText" name="modalPartNumber" readonly />
+      </label>
+      <label>
+        Date Code
+        <input type="text" [ngModel]="dateCodeSearchText" name="modalDateCode" readonly />
+      </label>
+      <label>
+        Starting Sequence
+        <input type="number" min="0" step="1" [(ngModel)]="startingSequence" name="modalStartingSequence" />
+      </label>
+      <p class="modal-message" *ngIf="combinationSaveMessage">{{ combinationSaveMessage }}</p>
+      <div class="modal-actions">
+        <button type="button" (click)="closeCombinationDialog()">Cancel</button>
+        <button type="button" class="primary-action" (click)="saveNewCombination()">Save Combination</button>
+      </div>
     </div>
   </section>
 
@@ -318,6 +380,12 @@
             </ng-container>
             <span class="empty-detail" *ngIf="!pair.report"></span>
           </div>
+          <div class="detail-row density-sensitivity-row">
+            <label>Density</label>
+            <textarea [(ngModel)]="density" name="density" rows="1"></textarea>
+            <label>Sensitivity</label>
+            <textarea [(ngModel)]="sensitivity" name="sensitivity" rows="1"></textarea>
+          </div>
           <div class="remarks-detail-row">
             <label>Remarks</label>
             <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
@@ -521,15 +589,15 @@
         <input [(ngModel)]="draftDialogName" name="draftDialogName" placeholder="Example: RT Report 001" />
       </label>
 
-      <label class="dialog-field" *ngIf="dialogMode === 'load' && savedDraftOptions.length">
-        Select draft
+      <label class="dialog-field" *ngIf="dialogMode === 'load' && availableReports.length">
+        Select saved report
         <select [(ngModel)]="selectedDraftToLoad" name="selectedDraftToLoad">
-          <option *ngFor="let draftName of savedDraftOptions" [value]="draftName">{{ draftName }}</option>
+          <option *ngFor="let report of availableReports" [value]="report.id">{{ report.report_no }} ({{ report.report_type }})</option>
         </select>
       </label>
 
-      <p class="dialog-empty" *ngIf="dialogMode === 'load' && !savedDraftOptions.length">
-        No saved drafts were found.
+      <p class="dialog-empty" *ngIf="dialogMode === 'load' && !availableReports.length">
+        No saved reports were found.
       </p>
 
       <div class="dialog-actions">

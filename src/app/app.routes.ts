@@ -7,6 +7,7 @@ import { CreateInvoiceComponent } from './pages/invoices/create-invoice/create-i
 import { SequenceSearchComponent } from './pages/sequence-search/sequence-search';
 import { CreateGenericReportComponent } from './pages/reports/create-generic-report/create-generic-report';
 import { CreateNonNblaReportComponent } from './pages/reports/create-non-nbla-report/create-non-nbla-report';
+import { ReportRepositoryComponent } from './pages/reports/report-repository/report-repository';
 
 export const routes: Routes = [
   {
@@ -34,8 +35,20 @@ export const routes: Routes = [
     component: CreateGenericReportComponent
   },
   {
+    path: 'create-nabl-report',
+    component: CreateGenericReportComponent
+  },
+  {
     path: 'create-non-nbla-report',
     component: CreateNonNblaReportComponent
+  },
+  {
+    path: 'create-non-nabl-report',
+    component: CreateNonNblaReportComponent
+  },
+  {
+    path: 'reports',
+    component: ReportRepositoryComponent
   }
 ];
 
