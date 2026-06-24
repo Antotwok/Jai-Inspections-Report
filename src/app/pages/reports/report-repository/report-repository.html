@@ -33,6 +33,7 @@
         <th>Date Code</th>
         <th>Report Type</th>
         <th>Report Date</th>
+        <th>Report Time</th>
         <th>Status</th>
         <th>Actions</th>
       </tr>
@@ -44,7 +45,8 @@
         <td>{{ report.part_number }}</td>
         <td>{{ displayDateCode(report) }}</td>
         <td>{{ report.report_type }}</td>
-        <td>{{ report.report_date || '-' }}</td>
+        <td>{{ displayReportDate(report) }}</td>
+        <td>{{ displayReportTime(report) }}</td>
         <td>{{ report.status }}</td>
         <td class="actions">
           <button type="button" (click)="openReport(report)">Open</button>

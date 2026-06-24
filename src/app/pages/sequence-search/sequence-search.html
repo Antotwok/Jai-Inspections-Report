@@ -1,36 +1,47 @@
 <main class="sequence-page">
   <section class="hero">
     <div>
-      <p class="eyebrow">Sequence Search</p>
-      <h1>Find part/date-code sequences</h1>
-      <p>Search by part number, date code, or customer to see the current and next available sequence values.</p>
+      <p class="eyebrow">Sequence Management Dashboard</p>
+      <h1>Master view for part and date-code sequences</h1>
+      <p>Search, sort, edit, and remove combinations without querying PostgreSQL directly.</p>
     </div>
     <a routerLink="/" class="home-link">Home</a>
   </section>
 
-  <section class="panel search-panel">
+  <section class="overview-grid">
+    <article class="overview-card">
+      <span>Total Customers</span>
+      <strong>{{ totalCustomers }}</strong>
+    </article>
+    <article class="overview-card">
+      <span>Total Part Numbers</span>
+      <strong>{{ totalPartNumbers }}</strong>
+    </article>
+    <article class="overview-card">
+      <span>Total Date Codes</span>
+      <strong>{{ totalDateCodes }}</strong>
+    </article>
+    <article class="overview-card">
+      <span>Total Sequence Combinations</span>
+      <strong>{{ totalCombinations }}</strong>
+    </article>
+  </section>
+
+  <section class="panel filters">
     <label>
       <span>Customer</span>
-      <select [(ngModel)]="customerId" name="customerId">
-        <option value="">Select customer</option>
-        <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
-      </select>
-    </label>
-    <label>
-      <span>Customer Search</span>
-      <input [(ngModel)]="customerSearch" name="customerSearch" placeholder="Type customer name or code" />
+      <input [(ngModel)]="customerSearch" name="customerSearch" placeholder="Type customer name" (input)="onFilterInput()" />
     </label>
     <label>
       <span>Part Number</span>
-      <input [(ngModel)]="partNumber" name="partNumber" placeholder="e.g. 724940" />
+      <input [(ngModel)]="partSearch" name="partSearch" placeholder="Type part number" (input)="onFilterInput()" />
     </label>
     <label>
       <span>Date Code</span>
-      <input [(ngModel)]="dateCode" name="dateCode" placeholder="e.g. 155611" />
+      <input [(ngModel)]="dateCodeSearch" name="dateCodeSearch" placeholder="Type date code" (input)="onFilterInput()" />
     </label>
     <div class="search-actions">
-      <button type="button" class="primary" (click)="search()">Search</button>
-      <button type="button" class="secondary" (click)="clear()">Clear</button>
+      <button type="button" class="secondary" (click)="clearFilters()">Clear</button>
     </div>
   </section>
 
@@ -38,31 +49,76 @@
     <p class="message">{{ message }}</p>
   </section>
 
-  <section class="panel" *ngIf="results.length">
-    <h2>Search Results</h2>
-    <div class="table-wrap">
+  <section class="panel table-panel">
+    <div class="table-header">
+      <h2>Sequence Combinations</h2>
+      <span class="count">{{ filteredRecords.length }} rows</span>
+    </div>
+
+    <div class="table-wrap" *ngIf="filteredRecords.length; else emptyState">
       <table>
         <thead>
           <tr>
-            <th>Customer</th>
-            <th>Part Number</th>
-            <th>Date Code</th>
-            <th>Current Sequence</th>
+            <th (click)="toggleSort('customer_name')">Customer {{ sortIndicator('customer_name') }}</th>
+            <th (click)="toggleSort('part_number')">Part Number {{ sortIndicator('part_number') }}</th>
+            <th (click)="toggleSort('date_code')">Date Code {{ sortIndicator('date_code') }}</th>
+            <th (click)="toggleSort('current_sequence')">Current Sequence {{ sortIndicator('current_sequence') }}</th>
             <th>Next Available Sequence</th>
-            <th>Last Updated</th>
+            <th (click)="toggleSort('updated_at')">Last Updated {{ sortIndicator('updated_at') }}</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of results">
-            <td>{{ row.customer_name || '-' }}</td>
+          <tr *ngFor="let row of filteredRecords">
+            <td>{{ customerLabel(row) }}</td>
             <td>{{ row.part_number }}</td>
             <td>{{ row.date_code }}</td>
-            <td>{{ row.current_sequence ?? 0 }}</td>
+            <td>{{ formattedCurrentSequence(row) }}</td>
             <td>{{ nextAvailableSequence(row) }}</td>
-            <td>{{ row.updated_at ? (row.updated_at | date: 'medium') : '-' }}</td>
+            <td>{{ formattedUpdatedAt(row.updated_at) }}</td>
+            <td class="actions">
+              <button type="button" class="secondary" (click)="openEdit(row)">Edit</button>
+              <button type="button" class="danger" (click)="promptDelete(row)">Delete</button>
+            </td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <ng-template #emptyState>
+      <p class="empty-state" *ngIf="!loading">No combinations to display.</p>
+    </ng-template>
+  </section>
+
+  <section class="modal-backdrop" *ngIf="editingRecord">
+    <div class="modal-card">
+      <h3>Edit Current Sequence</h3>
+      <p class="modal-subtitle">
+        {{ customerLabel(editingRecord) }} | {{ editingRecord.part_number }} | {{ editingRecord.date_code }}
+      </p>
+      <label>
+        <span>Current Sequence</span>
+        <input [(ngModel)]="editSequence" name="editSequence" placeholder="J080" />
+      </label>
+      <p class="error" *ngIf="editError">{{ editError }}</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="cancelEdit()">Cancel</button>
+        <button type="button" class="primary" (click)="saveEdit()">Save</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="modal-backdrop" *ngIf="deleteRecord">
+    <div class="modal-card">
+      <h3>Delete Combination</h3>
+      <p class="modal-subtitle">
+        Delete {{ deleteRecord.part_number }} + {{ deleteRecord.date_code }} for {{ customerLabel(deleteRecord) }}?
+      </p>
+      <p class="error" *ngIf="deleteError">{{ deleteError }}</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="cancelDelete()">Cancel</button>
+        <button type="button" class="danger" (click)="confirmDelete()">Delete</button>
+      </div>
     </div>
   </section>
 </main>

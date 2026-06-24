@@ -75,17 +75,33 @@ async function ensureRelationship(req, res) {
       return res.status(400).json({ message: 'part_number and date_code are required.' });
     }
     const currentSequence = Number.isFinite(startingSequence) && startingSequence >= 0 ? Math.floor(startingSequence) : 0;
+    const existing = await query(
+      `SELECT * FROM part_datecode_sequences WHERE part_number = $1 AND date_code = $2`,
+      [partNumber, dateCode]
+    );
+
+    if (existing.rows.length) {
+      const row = existing.rows[0];
+      return res.status(200).json({
+        ...row,
+        created: false,
+        message: 'Sequence already exists.'
+      });
+    }
+
     const result = await query(
       `
         INSERT INTO part_datecode_sequences (part_number, date_code, current_sequence, created_at, updated_at)
         VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (part_number, date_code)
-        DO UPDATE SET updated_at = CURRENT_TIMESTAMP
         RETURNING *
       `,
       [partNumber, dateCode, currentSequence]
     );
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({
+      ...result.rows[0],
+      created: true,
+      message: 'Created new sequence.'
+    });
   } catch (error) {
     console.error('Failed to ensure part/date code relationship:', error);
     res.status(500).json({ message: 'Failed to ensure part/date code relationship.' });
@@ -155,10 +171,71 @@ async function advanceSequence(req, res) {
   }
 }
 
+async function updateSequenceById(req, res) {
+  try {
+    const sequenceId = Number(req.params.id);
+    const currentSequence = Number(req.body?.current_sequence);
+    if (!Number.isFinite(sequenceId)) {
+      return res.status(400).json({ message: 'Valid sequence id is required.' });
+    }
+
+    const existing = await query(
+      `SELECT * FROM part_datecode_sequences WHERE id = $1`,
+      [sequenceId]
+    );
+
+    if (!existing.rows.length) {
+      return res.status(404).json({ message: 'Sequence record not found.' });
+    }
+
+    const nextSequence = Number.isFinite(currentSequence) ? Math.max(0, Math.floor(currentSequence)) : existing.rows[0].current_sequence;
+    const result = await query(
+      `
+        UPDATE part_datecode_sequences
+        SET current_sequence = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *
+      `,
+      [nextSequence, sequenceId]
+    );
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Failed to update part/date code sequence:', error);
+    return res.status(500).json({ message: 'Failed to update sequence.' });
+  }
+}
+
+async function deleteSequenceById(req, res) {
+  try {
+    const sequenceId = Number(req.params.id);
+    if (!Number.isFinite(sequenceId)) {
+      return res.status(400).json({ message: 'Valid sequence id is required.' });
+    }
+
+    const result = await query(
+      'DELETE FROM part_datecode_sequences WHERE id = $1 RETURNING id',
+      [sequenceId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: 'Sequence record not found.' });
+    }
+
+    return res.json({ message: 'Combination deleted successfully.' });
+  } catch (error) {
+    console.error('Failed to delete part/date code sequence:', error);
+    return res.status(500).json({ message: 'Failed to delete sequence.' });
+  }
+}
+
 module.exports = {
   listPartNumbers,
   listDateCodes,
   ensureRelationship,
   getSequence,
-  advanceSequence
+  advanceSequence,
+  updateSequenceById,
+  deleteSequenceById
 };

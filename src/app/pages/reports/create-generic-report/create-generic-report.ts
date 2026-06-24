@@ -17,6 +17,7 @@ import { ReportService, StoredReport } from '../../../services/report.service';
 import { environment } from '../../../../environments/environment';
 
 interface GenericRtRow {
+  selected?: boolean;
   description: string;
   thickness: string;
   segment: string;
@@ -25,6 +26,7 @@ interface GenericRtRow {
   sensitivity: string;
   filmSize: string;
   observations: string;
+  result?: string;
   fontSize?: number;
   filmGroupId?: string;
 }
@@ -123,6 +125,41 @@ const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
 const FOCAL_SPOT_OPTION = 'Focal Spot';
+const ABBREVIATION_DICTIONARY: Record<string, string> = {
+  AL: 'Aligned',
+  'B/H': 'Blow Holes',
+  'B/T': 'Burn Through',
+  CAV: 'Cavity',
+  CC: 'Concavity',
+  CL: 'Cluster',
+  CS: 'Check Surface',
+  EL: 'Elongated',
+  EP: 'Excess Penetration',
+  FM: 'Film Mark',
+  GMT: 'Grind and Retake',
+  MRT: 'Merge and Retake',
+  MM: 'Mismatch',
+  HD: 'High Density',
+  ISO: 'Isolated',
+  LF: 'Lack of Fusion',
+  LP: 'Lack of Penetration',
+  LD: 'Low Density',
+  NSD: 'No Significant Defect',
+  BMD: 'Base Metal Defect',
+  P: 'Porosity',
+  PM: 'Process Mark',
+  RC: 'Root Concavity',
+  RS: 'Reshoot',
+  RT: 'Retake',
+  'RU/C': 'Root Under Cut',
+  'R/C': 'Root Cavity',
+  SD: 'Surface Depression',
+  SL: 'Slag',
+  SM: 'Surface Mark',
+  TI: 'Tungsten Inclusion',
+  'U/C': 'Under Cut',
+  'W/H': 'Worm Holes'
+};
 let nextFilmGroupId = 1;
 
 @Component({
@@ -136,6 +173,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly otherOption = OTHER_OPTION;
+  private readonly acceptedObservationCodes = ['NSD', 'CCI', 'CCII'];
   private readonly storageKey = 'jai-generic-rt-report-draft';
   private readonly namedDraftsStorageKey = 'jai-generic-rt-report-named-drafts';
   private readonly settingsStorageKey = 'jai-generic-rt-report-settings';
@@ -252,8 +290,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   pages: GenericRtPage[] = [{ rows: [this.createRow(this.generatedDescription(), '')] }];
 
   remarks = '- - -';
-  abbreviationLeft = 'N S D - NO SIGNIFICANT DEFECT';
-  abbreviationRight = 'A - POROSITY';
+  abbreviationLeft = '';
+  abbreviationRight = '';
   evaluatedBy = this.dropdownDefault('evaluatedBy');
   evaluatedByDesignation = 'NDT Level II';
   reviewedBy = this.dropdownDefault('reviewedBy');
@@ -333,6 +371,37 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     return this.dateCodeOptions.filter((option) => option.toLowerCase().includes(term)).slice(0, 10);
   }
 
+  get abbreviationEntries(): Array<{ code: string; description: string }> {
+    const used = new Set<string>();
+    const entries: Array<{ code: string; description: string }> = [];
+
+    for (const observation of this.collectObservationValues()) {
+      for (const code of this.extractObservationCodes(observation)) {
+        const description = ABBREVIATION_DICTIONARY[code];
+        if (!description || used.has(code)) continue;
+        used.add(code);
+        entries.push({ code, description });
+      }
+    }
+
+    return entries;
+  }
+
+  get abbreviationColumns(): Array<Array<{ code: string; description: string }>> {
+    const entries = this.abbreviationEntries;
+    const midpoint = Math.ceil(entries.length / 2);
+    return [entries.slice(0, midpoint), entries.slice(midpoint)];
+  }
+
+  get abbreviationRows(): Array<Array<{ code: string; description: string }>> {
+    const entries = this.abbreviationEntries;
+    const rows: Array<Array<{ code: string; description: string }>> = [];
+    for (let index = 0; index < entries.length; index += 3) {
+      rows.push(entries.slice(index, index + 3));
+    }
+    return rows;
+  }
+
   ngAfterViewInit(): void {
     this.observeReportPages();
     this.reportPageElements.changes.subscribe(() => {
@@ -382,10 +451,40 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
+  duplicateRows(pageIndex: number): void {
+    const rows = this.pages[pageIndex]?.rows ?? [];
+    const selectedIndexes = this.getSelectedRowIndexes(rows);
+    if (!selectedIndexes.length) {
+      this.validationMessage = 'Select one or more rows to duplicate.';
+      return;
+    }
+
+    const groupsToCopy = this.collectSelectedRowGroups(rows, selectedIndexes);
+    const insertAt = selectedIndexes[selectedIndexes.length - 1] + 1;
+    const duplicatedRows = groupsToCopy.flatMap((groupRows) =>
+      groupRows.map((row) => this.cloneRow(row, row.filmGroupId ? this.createFilmGroupId() : undefined))
+    );
+    rows.splice(insertAt, 0, ...duplicatedRows);
+    this.clearRowSelection(rows);
+    duplicatedRows.forEach((row) => (row.selected = false));
+    this.schedulePageBoundaryUpdate();
+  }
+
+  hasSelectedRows(pageIndex: number): boolean {
+    return (this.pages[pageIndex]?.rows ?? []).some((row) => row.selected);
+  }
+
+  toggleRowSelection(pageIndex: number, rowIndex: number, selected: boolean): void {
+    const row = this.pages[pageIndex]?.rows[rowIndex];
+    if (!row) return;
+    row.selected = selected;
+  }
+
   removeRow(pageIndex: number, rowIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     if (rows.length === 1) return;
     rows.splice(rowIndex, 1);
+    this.clearRowSelection(rows);
     this.schedulePageBoundaryUpdate();
   }
 
@@ -580,6 +679,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       this.selectedDraftToLoad = String(saved.id);
       await this.refreshNextReportNumber();
       await this.refreshNextAvailableSequence();
+      this.customerService.notifySequenceChanged();
       this.closeDraftDialog();
       await this.router.navigate(['/reports']);
       this.showSaveStatus(
@@ -605,6 +705,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       console.log('[report:update]', { reportId: this.currentReportId, payload });
       await firstValueFrom(this.reportService.updateReport(this.currentReportId, payload));
       await this.refreshNextAvailableSequence();
+      this.customerService.notifySequenceChanged();
       await this.router.navigate(['/reports']);
       this.showSaveStatus(
         this.nextAvailableSequence
@@ -662,6 +763,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.sfdColumnLabel = draft.sfdColumnLabel === 'F.F.D' ? 'F.F.D' : 'S.F.D';
     this.upperDetailsFontSize = this.normalizeFontSize(draft.upperDetailsFontSize, 10.5);
     this.lowerDetailsFontSize = this.normalizeFontSize(draft.lowerDetailsFontSize, 10.5);
+    this.syncRowResultsFromObservations();
     this.hydrateReportNumber();
     this.issueDatePickerValue = this.parseDisplayDate(this.fieldValue('Issue Date')) || this.todayIso();
     this.examinationDatePickerValue = this.parseDisplayDate(this.fieldValue('Date of Examination')) || this.todayIso();
@@ -749,8 +851,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       film_series: selectedPart?.film_series || null,
       sequence_start: this.extractMaxSequence(rows),
       sequence_end: this.extractMaxSequence(rows),
-      report_date: this.parseDisplayDate(this.fieldValue('Issue Date')) || null,
-      inspection_date: this.parseDisplayDate(this.fieldValue('Date of Examination')) || null,
+      report_date: this.normalizeReportDate(this.fieldValue('Issue Date')),
+      inspection_date: this.normalizeReportDate(this.fieldValue('Date of Examination')),
       status,
       report_json: {
         ...snapshot,
@@ -1005,9 +1107,22 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   openAddCombinationDialog(): void {
+    const partNumber = (this.selectedPartNumber || this.partSearchText).trim();
+    const dateCode = (this.selectedDateCode || this.dateCodeSearchText).trim();
+    if (!partNumber || !dateCode) {
+      this.sequenceMissingMessage = 'Select a part number and date code first.';
+      this.showSaveStatus(this.sequenceMissingMessage, 'error');
+      return;
+    }
+
+    this.selectedPartNumber = partNumber;
+    this.partSearchText = partNumber;
+    this.selectedDateCode = dateCode;
+    this.dateCodeSearchText = dateCode;
     this.combinationDialogMode = 'addCombination';
     this.startingSequence = Number.isFinite(this.startingSequence) && this.startingSequence >= 0 ? Math.floor(this.startingSequence) : 0;
     this.combinationSaveMessage = '';
+    this.showSaveStatus(`Ready to create sequence for ${partNumber} + ${dateCode}.`, 'success');
   }
 
   closeCombinationDialog(): void {
@@ -1016,8 +1131,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   async saveNewCombination(): Promise<void> {
-    const partNumber = this.selectedPartNumber.trim();
-    const dateCode = this.selectedDateCode.trim();
+    const partNumber = (this.selectedPartNumber || this.partSearchText).trim();
+    const dateCode = (this.selectedDateCode || this.dateCodeSearchText).trim();
     if (!partNumber || !dateCode) {
       this.showSaveStatus('Select a part number and date code first.', 'error');
       this.combinationSaveMessage = 'Select a part number and date code first.';
@@ -1025,9 +1140,18 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     try {
-      await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
-      this.combinationSaveMessage = 'Combination created successfully.';
-      this.showSaveStatus('Combination created successfully.', 'success');
+      this.selectedPartNumber = partNumber;
+      this.partSearchText = partNumber;
+      this.selectedDateCode = dateCode;
+      this.dateCodeSearchText = dateCode;
+      const result = await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
+      if (result?.created === false) {
+        this.combinationSaveMessage = result?.message || 'Sequence already exists.';
+        this.showSaveStatus(this.combinationSaveMessage, 'error');
+      } else {
+        this.combinationSaveMessage = result?.message || 'Created new sequence.';
+        this.showSaveStatus(this.combinationSaveMessage, 'success');
+      }
       this.closeCombinationDialog();
       await this.loadSequenceForSelection(partNumber, dateCode);
       await this.refreshPartNumberOptions();
@@ -1366,8 +1490,37 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       density: '2 -3.5',
       sensitivity: '2%',
       filmSize: '4 x 12"',
-      observations: 'N S D\nN S D'
+      observations: 'N S D\nN S D',
+      result: this.defaultResultForObservation('N S D\nN S D')
     };
+  }
+
+  private normalizeObservationText(value: string): string {
+    return String(value || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '');
+  }
+
+  private defaultResultForObservation(value: string): string {
+    const normalized = this.normalizeObservationText(value);
+    return this.acceptedObservationCodes.includes(normalized) ? 'Accepted' : 'Not Accepted';
+  }
+
+  private syncRowResultsFromObservations(): void {
+    for (const page of this.pages) {
+      for (const row of page.rows) {
+        row.result = this.defaultResultForObservation(row.observations);
+      }
+    }
+  }
+
+  private cloneRow(row: GenericRtRow, filmGroupId?: string): GenericRtRow {
+    const cloned = structuredClone(row) as GenericRtRow;
+    if (filmGroupId) {
+      cloned.filmGroupId = filmGroupId;
+    }
+    delete cloned.selected;
+    return cloned;
   }
 
   private getSelectedPart(): CustomerPart | undefined {
@@ -1385,6 +1538,22 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       .flatMap((page) => page.rows)
       .map((row) => row.description?.trim())
       .filter((value): value is string => Boolean(value));
+  }
+
+  private collectObservationValues(): string[] {
+    return this.pages
+      .flatMap((page) => page.rows)
+      .map((row) => row.observations || '')
+      .filter((value): value is string => Boolean(String(value).trim()));
+  }
+
+  private extractObservationCodes(value: string): string[] {
+    const normalized = String(value || '')
+      .toUpperCase()
+      .replace(/\s+/g, '');
+    const tokens = normalized.match(/[A-Z]+(?:\/[A-Z]+)?/g) || [];
+    const codes = tokens.filter((token) => ABBREVIATION_DICTIONARY[token]);
+    return codes;
   }
 
   private loadSequenceForSelection(partNumber: string, dateCode: string): void {
@@ -1485,16 +1654,65 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
     const sourceGroupId = sourceRow.filmGroupId;
     if (!sourceGroupId) {
-      return [{ ...sourceRow }];
+      return [this.cloneRow(sourceRow)];
     }
 
     const groupRows = rows.filter((row) => row.filmGroupId === sourceGroupId);
     const newGroupId = this.createFilmGroupId();
 
-    return groupRows.map((row) => ({
-      ...structuredClone(row),
-      filmGroupId: newGroupId
-    }));
+    return groupRows.map((row) => this.cloneRow(row, newGroupId));
+  }
+
+  private getSelectedRowIndexes(rows: GenericRtRow[]): number[] {
+    return rows
+      .map((row, index) => (row.selected ? index : -1))
+      .filter((index) => index >= 0);
+  }
+
+  private groupStartIndex(rows: GenericRtRow[], rowIndex: number): number {
+    const groupId = rows[rowIndex]?.filmGroupId;
+    if (!groupId) return rowIndex;
+    let index = rowIndex;
+    while (index > 0 && rows[index - 1]?.filmGroupId === groupId) index--;
+    return index;
+  }
+
+  private groupEndIndex(rows: GenericRtRow[], startIndex: number): number {
+    const groupId = rows[startIndex]?.filmGroupId;
+    if (!groupId) return startIndex;
+    let index = startIndex;
+    while (index + 1 < rows.length && rows[index + 1]?.filmGroupId === groupId) index++;
+    return index;
+  }
+
+  private collectSelectedRowGroups(rows: GenericRtRow[], selectedIndexes: number[]): GenericRtRow[][] {
+    const groups: GenericRtRow[][] = [];
+    const seenGroupIds = new Set<string>();
+
+    for (const rowIndex of selectedIndexes) {
+      const row = rows[rowIndex];
+      if (!row) continue;
+
+      const groupId = row.filmGroupId;
+      if (groupId) {
+        if (seenGroupIds.has(groupId)) continue;
+        seenGroupIds.add(groupId);
+        const start = this.groupStartIndex(rows, rowIndex);
+        const end = this.groupEndIndex(rows, start);
+        groups.push(rows.slice(start, end + 1));
+        continue;
+      }
+
+      groups.push([row]);
+    }
+
+    return groups;
+  }
+
+  private clearRowSelection(rows: GenericRtRow[]): void {
+    rows.forEach((row) => {
+      row.selected = false;
+    });
   }
 
   private defaultSettings(): GenericRtSettings {
@@ -1614,8 +1832,18 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private parseDisplayDate(value: string): string {
-    const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value.trim());
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const isoMatch = /^(\d{4}-\d{2}-\d{2})[T\s]/.exec(trimmed);
+    if (isoMatch) return isoMatch[1];
+    const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(trimmed);
     return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+  }
+
+  private normalizeReportDate(value: string): string | null {
+    const normalized = this.parseDisplayDate(value);
+    return normalized || null;
   }
 
   private parseDisplayDateTime(value: string): string {

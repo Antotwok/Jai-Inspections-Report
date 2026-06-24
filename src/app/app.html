@@ -1,1 +1,6 @@
+<div class="app-status-badge" [class.connected]="dbConnected" [class.disconnected]="!dbConnected" aria-live="polite">
+  <span class="app-status-dot"></span>
+  <span>{{ dbStatusText }}</span>
+</div>
+
 <router-outlet></router-outlet>

@@ -1,0 +1,45 @@
+:host {
+  display: block;
+}
+
+.app-status-badge {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(17, 24, 39, 0.88);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.app-status-badge.connected {
+  background: rgba(20, 96, 56, 0.92);
+}
+
+.app-status-badge.disconnected {
+  background: rgba(153, 27, 27, 0.92);
+}
+
+.app-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+}
+
+@media print {
+  .app-status-badge {
+    display: none !important;
+  }
+}

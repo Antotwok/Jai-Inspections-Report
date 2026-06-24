@@ -17,6 +17,7 @@ import { ReportService, StoredReport } from '../../../services/report.service';
 import { environment } from '../../../../environments/environment';
 
 interface GenericRtRow {
+  selected?: boolean;
   serialNo?: string;
   description: string;
   thickness: string;
@@ -84,6 +85,8 @@ interface GenericRtDraft {
   clientSignature: string;
   inspectingOfficer: string;
   notes: string;
+  footerPartName: string;
+  showFooterPartNameRow: boolean;
   footerPageLabel: string;
   footerFormatNo: string;
   footerFirstIssue: string;
@@ -113,6 +116,8 @@ interface GenericRtHistoryState {
   clientSignature: string;
   inspectingOfficer: string;
   notes: string;
+  footerPartName: string;
+  showFooterPartNameRow: boolean;
   footerPageLabel: string;
   footerFormatNo: string;
   footerFirstIssue: string;
@@ -148,6 +153,7 @@ type DropdownKey =
 type DraftDialogMode = 'save' | 'load' | '';
 type ConfirmDialogMode = 'update' | 'reset' | 'deleteDraft' | '';
 type CombinationDialogMode = '' | 'addCombination';
+type SaveMode = 'draft' | 'completed';
 
 
 const OTHER_OPTION = '__OTHERS__';
@@ -158,8 +164,47 @@ const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
 const FOCAL_SPOT_OPTION = 'Focal Spot';
+const FOCAL_SPOT_VALUE = '1.5mm x 1.5mm';
+const SOURCE_SIZE_VALUE = '2.4mm x 2.7mm';
 const SFD_OPTION = 'S.F.D';
 const FFD_OPTION = 'F.F.D';
+const ABBREVIATION_DICTIONARY: Record<string, string> = {
+  AL: 'Aligned',
+  BH: 'Blow Holes',
+  BT: 'Burn Through',
+  CAV: 'Cavity',
+  CC: 'Concavity',
+  CL: 'Cluster',
+  CS: 'Check Surface',
+  EL: 'Elongated',
+  EP: 'Excess Penetration',
+  FM: 'Film Mark',
+  GRT: 'Grind and Retake',
+  MRT: 'Merge and Retake',
+  MM: 'Mismatch',
+  HD: 'High Density',
+  ISO: 'Isolated',
+  LF: 'Lack of Fusion',
+  LP: 'Lack of Penetration',
+  LD: 'Low Density',
+  CD: 'Shrinkage',
+  NSD: 'No Significant Defect',
+  BMD: 'Base Metal Defect',
+  P: 'Porosity',
+  Por: 'Porosity',
+  PM: 'Process Mark',
+  RCC: 'Root Concavity',
+  RS: 'Reshoot',
+  RT: 'Retake',
+  RUC: 'Root Under Cut',
+  RC: 'Root Cavity',
+  SD: 'Surface Depression',
+  SL: 'Slag',
+  SM: 'Surface Mark',
+  TI: 'Tungsten Inclusion',
+  UC: 'Under Cut',
+  WH: 'Worm Holes'
+};
 let nextFilmGroupId = 1;
 
 @Component({
@@ -173,6 +218,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
 
   readonly otherOption = OTHER_OPTION;
+  private readonly acceptedObservationCodes = ['NSD', 'CCI', 'CCII'];
   private readonly storageKey = 'jai-generic-rt-report-draft';
   private readonly namedDraftsStorageKey = 'jai-generic-rt-report-named-drafts';
   private readonly settingsStorageKey = 'jai-generic-rt-report-settings';
@@ -195,6 +241,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   appStatusMessage = 'Ready';
   appStatusType: 'ready' | 'loaded' | 'saved' | 'updated' | 'deleted' | 'warning' | 'error' = 'ready';
   dialogMode: DraftDialogMode = '';
+  saveMode: SaveMode = 'draft';
   confirmMode: ConfirmDialogMode = '';
   draftDialogName = '';
   selectedDraftToLoad = '';
@@ -271,7 +318,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     { label: '\u00A0Source', value: this.dropdownDefault('source') },
     { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
     { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
-    { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
+    { label: SOURCE_SIZE_OPTION, value: SOURCE_SIZE_VALUE },
     { label: '\u00A0Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
     { label: '\u00A0Penetrameter', value: this.settings.defaultValues['Penetrameter'] },
   ];
@@ -288,6 +335,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   clientSignature = '';
   inspectingOfficer = '';
   notes = "";
+  footerPartName = '';
+  showFooterPartNameRow = false;
   footerPageLabel = 'Page';
   footerFormatNo = '';
   footerFirstIssue = '';
@@ -319,6 +368,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   get appStatusLabel(): string {
     return this.appStatusMessage || 'Ready';
+  }
+
+  get abbreviationRows(): Array<Array<{ code: string; description: string }>> {
+    const rows: Array<Array<{ code: string; description: string }>> = [];
+    for (let index = 0; index < this.abbreviationEntries.length; index += 3) {
+      rows.push(this.abbreviationEntries.slice(index, index + 3));
+    }
+    return rows;
   }
 
   get dropdownEntries(): Array<{ key: string; setting: DropdownSetting }> {
@@ -403,6 +460,28 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return this.redoStack.length > 0;
   }
 
+  get abbreviationEntries(): Array<{ code: string; description: string }> {
+    const used = new Set<string>();
+    const entries: Array<{ code: string; description: string }> = [];
+
+    for (const observation of this.collectObservationValues()) {
+      for (const code of this.extractObservationCodes(observation)) {
+        const description = ABBREVIATION_DICTIONARY[code];
+        if (!description || used.has(code)) continue;
+        used.add(code);
+        entries.push({ code, description });
+      }
+    }
+
+    return entries;
+  }
+
+  get abbreviationColumns(): Array<Array<{ code: string; description: string }>> {
+    const entries = this.abbreviationEntries;
+    const midpoint = Math.ceil(entries.length / 2);
+    return [entries.slice(0, midpoint), entries.slice(midpoint)];
+  }
+
   get filteredPartNumberOptions(): string[] {
     const term = this.partSearchText.trim().toLowerCase();
     return this.partNumberOptions.filter((option) => option.toLowerCase().includes(term)).slice(0, 10);
@@ -478,12 +557,61 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
+  toggleFooterPartNameRow(): void {
+    this.captureHistory();
+    this.showFooterPartNameRow = !this.showFooterPartNameRow;
+    if (!this.showFooterPartNameRow) {
+      this.footerPartName = '';
+    }
+    this.clearRedoStack();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  insertSampleRecords(): void {
+    this.captureHistory();
+    this.applySampleData();
+    this.clearRedoStack();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  duplicateRows(pageIndex: number): void {
+    const rows = this.pages[pageIndex]?.rows ?? [];
+    const selectedIndexes = this.getSelectedRowIndexes(rows);
+    if (!selectedIndexes.length) {
+      this.validationMessage = 'Select one or more rows to duplicate.';
+      this.setAppStatus('Duplicate Rows', 'warning');
+      return;
+    }
+
+    this.captureHistory();
+    const groupsToCopy = this.collectSelectedRowGroups(rows, selectedIndexes);
+    const insertAt = selectedIndexes[selectedIndexes.length - 1] + 1;
+    const duplicatedRows = groupsToCopy.flatMap((groupRows) =>
+      groupRows.map((row) => this.cloneRow(row, row.filmGroupId ? this.createFilmGroupId() : undefined))
+    );
+    rows.splice(insertAt, 0, ...duplicatedRows);
+    this.clearRowSelection(rows);
+    this.clearRedoStack();
+    this.schedulePageBoundaryUpdate();
+  }
+
+  hasSelectedRows(pageIndex: number): boolean {
+    return (this.pages[pageIndex]?.rows ?? []).some((row) => row.selected);
+  }
+
+  toggleRowSelection(pageIndex: number, rowIndex: number, selected: boolean): void {
+    const row = this.pages[pageIndex]?.rows[rowIndex];
+    if (!row) return;
+    row.selected = selected;
+  }
+
   removeRow(pageIndex: number, rowIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     if (rows.length === 1) return;
     this.captureHistory();
     rows.splice(rowIndex, 1);
     this.rebalanceFilmGroups(rows);
+    this.clearRowSelection(rows);
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -664,6 +792,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   openSaveDialog(): void {
     this.draftDialogName = this.fieldValue('Report No') || this.draftDialogName || 'NON-NABL RT Report';
     this.dialogMode = 'save';
+    this.saveMode = 'draft';
   }
 
   openUpdateDialog(): void {
@@ -683,6 +812,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   closeDraftDialog(): void {
     this.dialogMode = '';
+    this.saveMode = 'draft';
   }
 
   closeConfirmDialog(): void {
@@ -751,7 +881,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   confirmDraftDialog(): void {
     if (this.dialogMode === 'save') {
-      void this.saveDraft();
+      void this.saveDraft('draft');
       return;
     }
 
@@ -760,7 +890,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
-  private async saveDraft(): Promise<void> {
+  async saveDraftAsCompleted(): Promise<void> {
+    await this.saveDraft('completed');
+  }
+
+  private async saveDraft(mode: SaveMode): Promise<void> {
     const normalizedName = this.draftDialogName.trim();
     if (!normalizedName) {
       this.setAppStatus('Unable to Save Report', 'error');
@@ -768,14 +902,15 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     try {
-      const payload = this.createReportPayload('NON_NABL', 'DRAFT');
+      const payload = this.createReportPayload('NON_NABL', mode === 'completed' ? 'COMPLETED' : 'DRAFT');
       console.log('[report:save]', payload);
       const saved = await firstValueFrom(this.reportService.createReport(payload));
       this.currentReportId = saved.id;
       this.selectedDraftToLoad = String(saved.id);
       await this.incrementCustomerReportNumber();
+      this.customerService.notifySequenceChanged();
       this.closeDraftDialog();
-      this.setAppStatus('Report Saved Successfully', 'saved');
+      this.setAppStatus(mode === 'completed' ? 'Report Completed Successfully' : 'Report Saved Successfully', 'saved');
       void this.advanceSequenceAfterSave(`Report "${normalizedName}" saved successfully.`);
     } catch (error: any) {
       console.error('[report:save:error]', error);
@@ -793,6 +928,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       const payload = this.createReportPayload('NON_NABL', 'DRAFT');
       console.log('[report:update]', { reportId: this.currentReportId, payload });
       await firstValueFrom(this.reportService.updateReport(this.currentReportId, payload));
+      this.customerService.notifySequenceChanged();
       this.setAppStatus('Report Updated Successfully', 'updated');
       void this.advanceSequenceAfterSave(`Report "${this.fieldValue('Report No')}" updated successfully.`);
     } catch (error: any) {
@@ -844,6 +980,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.clientSignature = draft.clientSignature ?? this.clientSignature;
     this.inspectingOfficer = draft.inspectingOfficer ?? this.inspectingOfficer;
     this.notes = draft.notes ?? this.notes;
+    this.footerPartName = typeof (draft as any).footerPartName === 'string' ? (draft as any).footerPartName : this.footerPartName;
+    this.showFooterPartNameRow =
+      typeof (draft as any).showFooterPartNameRow === 'boolean' ? (draft as any).showFooterPartNameRow : this.showFooterPartNameRow;
+    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartName.trim();
     this.footerPageLabel = draft.footerPageLabel ?? this.footerPageLabel;
     this.footerFormatNo = draft.footerFormatNo ?? this.footerFormatNo;
     this.footerFirstIssue = draft.footerFirstIssue ?? this.footerFirstIssue;
@@ -851,6 +991,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.lowerTableScale = this.normalizeTableScale(draft.lowerTableScale ?? this.lowerTableScale);
     this.upperDetailsFontSize = this.normalizeFontSize(draft.upperDetailsFontSize, 10.5);
     this.lowerDetailsFontSize = this.normalizeFontSize(draft.lowerDetailsFontSize, 10.5);
+    this.syncRowResultsFromObservations();
     this.hydrateReportNumber();
     this.issueDatePickerValue = this.parseDisplayDate(this.fieldValue('Issue Date')) || this.todayIso();
     this.otherFieldLabels.clear();
@@ -942,8 +1083,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       film_series: selectedPart?.film_series || null,
       sequence_start: this.extractMaxSequence(rows),
       sequence_end: this.extractMaxSequence(rows),
-      report_date: this.parseDisplayDate(this.fieldValue('Report Date')) || null,
-      inspection_date: this.parseDisplayDate(this.fieldValue('Report Date')) || null,
+      report_date: this.normalizeReportDate(this.fieldValue('Report Date')),
+      inspection_date: this.normalizeReportDate(this.fieldValue('Report Date')),
       density: this.density,
       sensitivity: this.sensitivity,
       status,
@@ -1039,6 +1180,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.density = '';
     this.sensitivity = '';
     this.remarks = '- - -';
+    this.footerPartName = '';
+    this.showFooterPartNameRow = false;
     this.abbreviationLeft = 'N S D - NO SIGNIFICANT DEFECT';
     this.abbreviationRight = 'A - POROSITY';
     this.evaluatedBy = this.dropdownDefault('evaluatedBy');
@@ -1062,7 +1205,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       { label: '\u00A0Source', value: this.dropdownDefault('source') },
       { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
       { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
-      { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
+      { label: SOURCE_SIZE_OPTION, value: SOURCE_SIZE_VALUE },
       { label: '\u00A0Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
       { label: '\u00A0Penetrameter', value: this.settings.defaultValues['Penetrameter'] }
     ];
@@ -1108,6 +1251,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       clientSignature: this.clientSignature,
       inspectingOfficer: this.inspectingOfficer,
       notes: this.notes,
+      footerPartName: this.footerPartName,
+      showFooterPartNameRow: this.showFooterPartNameRow,
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
@@ -1139,6 +1284,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.clientSignature = snapshot.clientSignature;
     this.inspectingOfficer = snapshot.inspectingOfficer;
     this.notes = snapshot.notes;
+    this.footerPartName = snapshot.footerPartName ?? '';
+    this.showFooterPartNameRow = snapshot.showFooterPartNameRow ?? false;
+    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartName.trim();
     this.footerPageLabel = snapshot.footerPageLabel;
     this.footerFormatNo = snapshot.footerFormatNo;
     this.footerFirstIssue = snapshot.footerFirstIssue;
@@ -1192,7 +1340,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   onSourceSizeModeChange(field: ReportField, value: string): void {
     field.label = value;
-    field.value = value === SOURCE_SIZE_OPTION ? '2.4mm x 2.7mm' : '';
+    field.value = value === SOURCE_SIZE_OPTION ? SOURCE_SIZE_VALUE : FOCAL_SPOT_VALUE;
     this.schedulePageBoundaryUpdate();
   }
 
@@ -1213,9 +1361,34 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       }
 
       if (field.label === 'Source Size / Focal Spot') {
-        field.label = field.value?.trim() && field.value.trim() !== '2.4mm x 2.7mm' ? FOCAL_SPOT_OPTION : SOURCE_SIZE_OPTION;
+        field.label = field.value?.trim() && field.value.trim() !== SOURCE_SIZE_VALUE ? FOCAL_SPOT_OPTION : SOURCE_SIZE_OPTION;
       }
     });
+
+    const sourceField = this.reportFields.find((field) => this.normalizeLabel(field.label) === 'Source');
+    if (sourceField) {
+      this.applySourceDependentField(sourceField.value || '');
+    }
+  }
+
+  private applySourceDependentField(sourceValue: string): void {
+    const normalized = sourceValue.trim().toUpperCase();
+    const sourceField = this.reportFields.find((field) =>
+      [SOURCE_SIZE_OPTION, FOCAL_SPOT_OPTION, 'Source Size / Focal Spot'].includes(field.label)
+    );
+    if (!sourceField) return;
+
+    if (normalized === 'X-RAY') {
+      sourceField.label = FOCAL_SPOT_OPTION;
+      sourceField.value = FOCAL_SPOT_VALUE;
+      return;
+    }
+
+    if (normalized === 'CO-60' || normalized === 'IR-192') {
+      sourceField.label = SOURCE_SIZE_OPTION;
+      sourceField.value = SOURCE_SIZE_VALUE;
+      return;
+    }
   }
 
   getFieldControlType(label: string): string {
@@ -1241,6 +1414,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     this.otherFieldLabels.delete(field.label);
     field.value = value;
+    if (key === 'source') {
+      this.applySourceDependentField(value);
+    }
     this.clearRedoStack();
   }
 
@@ -1431,9 +1607,22 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   openAddCombinationDialog(): void {
+    const partNumber = (this.selectedPartNumber || this.partSearchText).trim();
+    const dateCode = (this.selectedDateCode || this.dateCodeSearchText).trim();
+    if (!partNumber || !dateCode) {
+      this.sequenceStatusMessage = 'Select a part number and date code first.';
+      this.setAppStatus(this.sequenceStatusMessage, 'error');
+      return;
+    }
+
+    this.selectedPartNumber = partNumber;
+    this.partSearchText = partNumber;
+    this.selectedDateCode = dateCode;
+    this.dateCodeSearchText = dateCode;
     this.combinationDialogMode = 'addCombination';
     this.startingSequence = Number.isFinite(this.startingSequence) && this.startingSequence >= 0 ? Math.floor(this.startingSequence) : 0;
     this.combinationSaveMessage = '';
+    this.setAppStatus(`Ready to create sequence for ${partNumber} + ${dateCode}.`, 'warning');
   }
 
   closeCombinationDialog(): void {
@@ -1442,8 +1631,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   async saveNewCombination(): Promise<void> {
-    const partNumber = this.selectedPartNumber.trim();
-    const dateCode = this.selectedDateCode.trim();
+    const partNumber = (this.selectedPartNumber || this.partSearchText).trim();
+    const dateCode = (this.selectedDateCode || this.dateCodeSearchText).trim();
     if (!partNumber || !dateCode) {
       this.combinationSaveMessage = 'Select a part number and date code first.';
       this.setAppStatus('Unable to Create Combination', 'error');
@@ -1451,9 +1640,18 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     try {
-      await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
-      this.combinationSaveMessage = 'Combination created successfully.';
-      this.setAppStatus('New Combination Detected', 'warning');
+      this.selectedPartNumber = partNumber;
+      this.partSearchText = partNumber;
+      this.selectedDateCode = dateCode;
+      this.dateCodeSearchText = dateCode;
+      const result = await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
+      if (result?.created === false) {
+        this.combinationSaveMessage = result?.message || 'Sequence already exists.';
+        this.setAppStatus(this.combinationSaveMessage, 'warning');
+      } else {
+        this.combinationSaveMessage = result?.message || 'Created new sequence.';
+        this.setAppStatus(this.combinationSaveMessage, 'saved');
+      }
       this.closeCombinationDialog();
       await this.refreshDateCodesForPart(partNumber);
       this.loadSequenceForSelection(partNumber, dateCode);
@@ -1875,6 +2073,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       clientSignature: this.clientSignature,
       inspectingOfficer: this.inspectingOfficer,
       notes: this.notes,
+      footerPartName: this.footerPartName,
+      showFooterPartNameRow: this.showFooterPartNameRow,
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
@@ -1910,7 +2110,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   private normalizeTableScale(value: number): number {
     if (!Number.isFinite(value)) return 1;
-    return Math.min(1.4, Math.max(0.4, value));
+    return Math.min(1.4, Math.max(0.1, value));
   }
 
   private pdfFileName(): string {
@@ -1922,16 +2122,139 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private createRow(description: string, segment: string): GenericRtRow {
     return {
       description,
-      thickness: 'Multiple',
+      thickness: '',
       segment,
       filmSize: '4" x 12"',
       observations: 'N S D',
-      results: 'Accepted'
+      results: this.defaultResultForObservation('N S D')
     };
   }
 
-  private cloneRow(row: GenericRtRow): GenericRtRow {
-    return { ...row };
+  private normalizeObservationText(value: string): string {
+    return String(value || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '');
+  }
+
+  private defaultResultForObservation(value: string): string {
+    const normalized = this.normalizeObservationText(value);
+    return this.acceptedObservationCodes.includes(normalized) ? 'Accepted' : 'Not Accepted';
+  }
+
+  private syncRowResultsFromObservations(): void {
+    for (const page of this.pages) {
+      for (const row of page.rows) {
+        row.results = this.defaultResultForObservation(row.observations);
+      }
+    }
+  }
+
+  onObservationChanged(row: GenericRtRow): void {
+    row.results = this.defaultResultForObservation(row.observations);
+  }
+
+  private applySampleData(): void {
+    const sampleRows = [
+      { filmIdentification: '721870 - LH - ME - 168611 - J1', segment: '1', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J2', segment: '1', observation: 'Cc - II', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J3', segment: '2', observation: 'A - I', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J4', segment: '2', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J5', segment: '3', observation: 'Cc - II', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J6', segment: '3', observation: 'Cc - I', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J7', segment: '4', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J8', segment: '4', observation: 'A - II', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J9', segment: '5', observation: 'Cc - IV', result: 'REJ' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J10', segment: '5', observation: 'Cc - I', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J11', segment: '6', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J12', segment: '6', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J13', segment: '7', observation: 'P - I', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J14', segment: '7', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J15', segment: '8', observation: 'Cc - II', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J16', segment: '8', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J17', segment: '9', observation: 'SL - I', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J18', segment: '9', observation: 'Cc - II', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J19', segment: '10', observation: 'NSD', result: 'ACC' },
+      { filmIdentification: '721870 - LH - ME - 168611 - J20', segment: '10', observation: 'Cc - II', result: 'ACC' }
+    ];
+
+    const rows = sampleRows.map((sample, index) => {
+      const row = this.createRow(sample.filmIdentification, sample.segment);
+      row.filmSize = index % 2 === 0 ? '6 x 16"' : '8 x 10"';
+      row.observations = [
+        'IQI: ASTM 1B',
+        'Film: AGFA D7',
+        index < 5 ? 'Density: 2.0 - 3.5' : 'Density: 2.1 - 3.2',
+        index % 3 === 0 ? 'Sensitivity: 2%' : 'Sensitivity: 1.8%',
+        'Procedure Specification: ASME SEC - V',
+        `Observation: ${sample.observation}`
+      ].join('\n');
+      row.results = sample.result;
+      return row;
+    });
+
+    this.pages = [{ rows }];
+    this.customerFields = [
+      { label: '\u00A0Customer Name & \u00A0Address *', value: 'Madras Engineering Industries (P) Limited' },
+      { label: '\u00A0Material', value: 'Carbon Steel' },
+      { label: '\u00A0Size & Thickness *', value: '' },
+      { label: '\u00A0Area Tested *', value: this.dropdownDefault('areaTested') },
+      { label: '\u00A0Lead Screens', value: this.dropdownDefault('leadScreens') },
+      { label: '\u00A0Exposure Technique', value: this.dropdownDefault('exposureTechniques') },
+      { label: '\u00A0Test Method *', value: this.dropdownDefault('testMethod') },
+      { label: '\u00A0Acceptance Std. *', value: this.dropdownDefault('acceptanceStandard') },
+      { label: SFD_OPTION, value: '' }
+    ];
+    this.reportFields = [
+      { label: '\u00A0Report No', value: 'JIA / MEI / 0548 / G' },
+      { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+      { label: '\u00A0Test Location', value: 'Madras Engineering Industries (P) Limited' },
+      { label: '\u00A0Source', value: 'Ir-192' },
+      { label: '\u00A0Source Strength', value: '25.00Ci.' },
+      { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
+      { label: SOURCE_SIZE_OPTION, value: '6 x 16"' },
+      { label: '\u00A0Film Class & Brand', value: 'AGFA D7' },
+      { label: '\u00A0Penetrameter', value: 'ASTM 1B' },
+      { label: 'Procedure Specification', value: 'ASME SEC - V' }
+    ];
+    this.remarks = '- - -';
+    this.abbreviationLeft = 'NSD - NO SIGNIFICANT DEFECT';
+    this.abbreviationRight = 'A - POROSITY';
+    this.evaluatedBy = this.dropdownDefault('evaluatedBy');
+    this.reviewedBy = this.dropdownDefault('reviewedBy');
+    this.reportNumberDigits = '0548';
+    this.selectedPartNumber = '721870';
+    this.partSearchText = '721870';
+    this.selectedDateCode = '168611';
+    this.dateCodeSearchText = '168611';
+    this.startingSequence = 1;
+    this.nextAvailableSequence = 'J021';
+    this.sequenceStatusMessage = 'Loaded 20 inter-related sample records for Madras Engineering Industries (P) Limited.';
+    this.otherFieldLabels.clear();
+    this.normalizeSelectableReportFields();
+  }
+
+  private cloneRow(row: GenericRtRow, filmGroupId?: string): GenericRtRow {
+    const cloned = structuredClone(row) as GenericRtRow;
+    if (filmGroupId) {
+      cloned.filmGroupId = filmGroupId;
+    }
+    delete cloned.selected;
+    return cloned;
+  }
+
+  private collectObservationValues(): string[] {
+    return this.pages
+      .flatMap((page) => page.rows)
+      .map((row) => row.observations || '')
+      .filter((value): value is string => Boolean(String(value).trim()));
+  }
+
+  private extractObservationCodes(value: string): string[] {
+    const normalized = String(value || '')
+      .toUpperCase()
+      .replace(/\s+/g, '');
+    const tokens = normalized.match(/[A-Z]+(?:\/[A-Z]+)?/g) || [];
+    return tokens.filter((token) => ABBREVIATION_DICTIONARY[token]);
   }
 
   private cloneRowGroup(rows: GenericRtRow[], startIndex: number): GenericRtRow[] {
@@ -1948,10 +2271,59 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const groupRows = rows.filter((row) => row.filmGroupId === sourceGroupId);
     const newGroupId = this.createFilmGroupId();
 
-    return groupRows.map((row) => ({
-      ...structuredClone(row),
-      filmGroupId: newGroupId
-    }));
+    return groupRows.map((row) => this.cloneRow(row, newGroupId));
+  }
+
+  private getSelectedRowIndexes(rows: GenericRtRow[]): number[] {
+    return rows
+      .map((row, index) => (row.selected ? index : -1))
+      .filter((index) => index >= 0);
+  }
+
+  private groupStartIndex(rows: GenericRtRow[], rowIndex: number): number {
+    const groupId = rows[rowIndex]?.filmGroupId;
+    if (!groupId) return rowIndex;
+    let index = rowIndex;
+    while (index > 0 && rows[index - 1]?.filmGroupId === groupId) index--;
+    return index;
+  }
+
+  private groupEndIndex(rows: GenericRtRow[], startIndex: number): number {
+    const groupId = rows[startIndex]?.filmGroupId;
+    if (!groupId) return startIndex;
+    let index = startIndex;
+    while (index + 1 < rows.length && rows[index + 1]?.filmGroupId === groupId) index++;
+    return index;
+  }
+
+  private collectSelectedRowGroups(rows: GenericRtRow[], selectedIndexes: number[]): GenericRtRow[][] {
+    const groups: GenericRtRow[][] = [];
+    const seenGroupIds = new Set<string>();
+
+    for (const rowIndex of selectedIndexes) {
+      const row = rows[rowIndex];
+      if (!row) continue;
+
+      const groupId = row.filmGroupId;
+      if (groupId) {
+        if (seenGroupIds.has(groupId)) continue;
+        seenGroupIds.add(groupId);
+        const start = this.groupStartIndex(rows, rowIndex);
+        const end = this.groupEndIndex(rows, start);
+        groups.push(rows.slice(start, end + 1));
+        continue;
+      }
+
+      groups.push([row]);
+    }
+
+    return groups;
+  }
+
+  private clearRowSelection(rows: GenericRtRow[]): void {
+    rows.forEach((row) => {
+      row.selected = false;
+    });
   }
 
   private sameRowContext(a: GenericRtRow, b: GenericRtRow): boolean {
@@ -2104,8 +2476,18 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private parseDisplayDate(value: string): string {
-    const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value.trim());
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const isoMatch = /^(\d{4}-\d{2}-\d{2})[T\s]/.exec(trimmed);
+    if (isoMatch) return isoMatch[1];
+    const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(trimmed);
     return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+  }
+
+  private normalizeReportDate(value: string): string | null {
+    const normalized = this.parseDisplayDate(value);
+    return normalized || null;
   }
 
   private parseDisplayDateTime(value: string): string {

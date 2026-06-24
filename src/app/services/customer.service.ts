@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
+import { Subject } from 'rxjs';
 
 export interface Customer {
   id?: number;
@@ -46,6 +47,7 @@ export interface CustomerPartSequence {
 
 export interface PartDateCodeSequenceRecord {
   id?: number;
+  customer_id?: number | null;
   customer_name?: string | null;
   part_number: string;
   date_code: string;
@@ -69,8 +71,14 @@ export interface PartDateCodeSequence {
 })
 export class CustomerService {
   api = environment.apiUrl;
+  private readonly sequenceRefreshSubject = new Subject<void>();
+  readonly sequenceRefresh$ = this.sequenceRefreshSubject.asObservable();
 
   constructor(private http: HttpClient) {}
+
+  notifySequenceChanged(): void {
+    this.sequenceRefreshSubject.next();
+  }
 
   getCustomers() {
     return this.http.get<Customer[]>(`${this.api}/customers`);
@@ -148,6 +156,14 @@ export class CustomerService {
     });
   }
 
+  updatePartDateCodeSequence(id: number, payload: { current_sequence?: number; customer_id?: number; part_number?: string; date_code?: string }) {
+    return this.http.put<PartDateCodeSequenceRecord>(`${this.api}/part-datecodes/${id}`, payload);
+  }
+
+  deletePartDateCodeSequence(id: number) {
+    return this.http.delete<{ message: string }>(`${this.api}/part-datecodes/${id}`);
+  }
+
   advanceSequence(customerId: number, partNumber: string, filmIdentifications: string[]) {
     return this.http.post<{ updated: boolean; current_sequence?: number; sequence_prefix?: string; next_available_sequence?: string; message?: string }>(
       `${this.api}/customer-part-sequences/advance`,
@@ -178,7 +194,7 @@ export class CustomerService {
   }
 
   ensurePartDateCode(partNumber: string, dateCode: string, startingSequence?: number) {
-    return this.http.post<PartDateCodeSequence>(`${this.api}/part-datecodes`, {
+    return this.http.post<PartDateCodeSequence & { created?: boolean; message?: string }>(`${this.api}/part-datecodes`, {
       part_number: partNumber,
       date_code: dateCode,
       ...(Number.isFinite(startingSequence as number) ? { starting_sequence: startingSequence } : {})

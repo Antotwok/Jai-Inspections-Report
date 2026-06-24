@@ -56,4 +56,40 @@ export class ReportRepositoryComponent implements OnInit {
   displayDateCode(report: StoredReport): string {
     return report.date_code || report.report_json?.dateCode || report.report_json?.date_code || '-';
   }
+
+  displayReportDate(report: StoredReport): string {
+    const value = report.report_date || report.report_json?.reportDate || report.report_json?.report_date || '';
+    if (!value) return '-';
+
+    const trimmed = String(value).trim();
+    const isoMatch = /^(\d{4}-\d{2}-\d{2})[T\s]/.exec(trimmed);
+    if (isoMatch) return isoMatch[1];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? trimmed : parsed.toISOString().slice(0, 10);
+  }
+
+  displayReportTime(report: StoredReport): string {
+    const value =
+      report.report_json?.itemReceiptDateTimePickerValue ||
+      report.report_json?.itemReceiptDateTime ||
+      report.report_json?.reportTime ||
+      report.report_json?.report_time ||
+      report.updated_at ||
+      '';
+
+    if (!value) return '-';
+
+    const trimmed = String(value).trim();
+    const hhmmMatch = /(\d{2}):(\d{2})(?::\d{2})?$/.exec(trimmed);
+    if (hhmmMatch) return `${hhmmMatch[1]}:${hhmmMatch[2]}`;
+
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return trimmed;
+
+    return parsed
+      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+      .replace(/\s/g, '');
+  }
 }

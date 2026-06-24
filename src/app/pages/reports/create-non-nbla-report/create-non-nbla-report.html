@@ -108,7 +108,7 @@
           </label>
           <label class="font-size-control">
             Lower table
-            <input type="number" min="0.4" max="1.4" step="0.05" [(ngModel)]="lowerTableScale" name="lowerTableScale" (ngModelChange)="updateLowerTableScale($event)" />
+            <input type="number" min="0.1" max="1.4" step="0.05" [(ngModel)]="lowerTableScale" name="lowerTableScale" (ngModelChange)="updateLowerTableScale($event)" />
           </label>
           <label class="font-size-control">
             Lower details
@@ -169,7 +169,10 @@
                       <option value="F.F.D">F.F.D</option>
                     </select>
                   </ng-container>
-                  <ng-template #customerLabelText>{{ pair.customer?.label }}</ng-template>
+                  <ng-template #customerLabelText>
+                    <span>{{ pair.customer?.label }}</span>
+                    <small *ngIf="pair.customer?.label?.trim() === 'Size & Thickness *'" class="unit-hint">in mm</small>
+                  </ng-template>
                 </label>
                 <ng-container *ngIf="pair.customer">
                   <ng-container *ngIf="dropdownKeyForLabel(pair.customer.label); else plainCustomerTextarea">
@@ -321,6 +324,22 @@
                 <label>Remarks</label>
                 <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
               </div>
+              <div class="part-name-detail-row" [class.part-name-shown]="showFooterPartNameRow || footerPartName.trim()">
+                <button
+                  type="button"
+                  class="add-part-name-btn"
+                  *ngIf="!showFooterPartNameRow"
+                  (click)="toggleFooterPartNameRow()"
+                >
+                  Add Part Name
+                </button>
+                <div class="part-name-line" *ngIf="showFooterPartNameRow || footerPartName.trim()">
+                  <input [(ngModel)]="footerPartName" [name]="'footerPartName'" placeholder="" />
+                  <button type="button" class="remove-part-name-btn" (click)="toggleFooterPartNameRow()" aria-label="Remove part name row">
+                    -
+                  </button>
+                </div>
+              </div>
             </section>
           </ng-container>
 
@@ -342,6 +361,9 @@
           </ng-template>
 
           <section class="table-toolbar">
+            <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
+              Duplicate Selected
+            </button>
             <button type="button" (click)="addRow(pageIndex)">Add Row</button>
           </section>
 
@@ -418,6 +440,7 @@
                     class="row-observations"
                     [(ngModel)]="row.observations"
                     [name]="'obs' + pageIndex + '-' + rowIndex"
+                    (ngModelChange)="onObservationChanged(row)"
                     [rows]="observationRows(row)"
                     [style.min-height]="observationMinHeight(row)"
                   ></textarea>
@@ -427,6 +450,14 @@
                     <option value="Accepted">Accepted</option>
                     <option value="Not Accepted">Not Accepted</option>
                   </select>
+                  <label class="row-selection-float">
+                    <input
+                      type="checkbox"
+                      [ngModel]="!!row.selected"
+                      [name]="'rowSelected' + pageIndex + '-' + rowIndex"
+                      (ngModelChange)="toggleRowSelection(pageIndex, rowIndex, $event)"
+                    />
+                  </label>
                 </td>
               </tr>
             </tbody>
@@ -435,10 +466,17 @@
           <div class="table-extension" aria-hidden="true"></div>
 
           <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
-            <div class="abbreviation-row">
+            <div class="abbreviation-section">
               <strong>ABBREVIATION :</strong>
-              <textarea [(ngModel)]="abbreviationLeft" name="abbreviationLeft" rows="1"></textarea>
-              <textarea [(ngModel)]="abbreviationRight" name="abbreviationRight" rows="1"></textarea>
+              <div class="abbreviation-grid">
+                <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
+                  <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
+                    <span>{{ item.code }}</span>
+                    <span>-</span>
+                    <span>{{ item.description }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <section class="signature-grid">
@@ -498,29 +536,6 @@
         <button type="button" class="reset" (click)="resetPreviewZoom()">Reset</button>
       </div>
     </section>
-  </section>
-
-  <section class="modal-backdrop" *ngIf="combinationDialogMode === 'addCombination'" (click)="closeCombinationDialog()">
-    <div class="modal-card" (click)="$event.stopPropagation()">
-      <h2>Create Sequence</h2>
-      <label>
-        Part Number
-        <input type="text" [ngModel]="partSearchText" name="modalPartNumber" readonly />
-      </label>
-      <label>
-        Date Code
-        <input type="text" [ngModel]="dateCodeSearchText" name="modalDateCode" readonly />
-      </label>
-      <label>
-        Starting Sequence
-        <input type="number" min="0" step="1" [(ngModel)]="startingSequence" name="modalStartingSequence" />
-      </label>
-      <p class="modal-message" *ngIf="combinationSaveMessage">{{ combinationSaveMessage }}</p>
-      <div class="modal-actions">
-        <button type="button" (click)="closeCombinationDialog()">Cancel</button>
-        <button type="button" class="primary-action" (click)="saveNewCombination()">Create Sequence</button>
-      </div>
-    </div>
   </section>
 
   <section class="settings-panel" *ngIf="settingsOpen" aria-label="Non-NABL RT Report settings">
@@ -653,6 +668,15 @@
           (click)="confirmDraftDialog()"
         >
           {{ dialogMode === 'save' ? 'Save' : 'Load' }}
+        </button>
+        <button
+          type="button"
+          class="primary-action"
+          *ngIf="dialogMode === 'save'"
+          [disabled]="!canConfirmDraftDialog"
+          (click)="saveDraftAsCompleted()"
+        >
+          Save as Completed
         </button>
       </div>
     </section>

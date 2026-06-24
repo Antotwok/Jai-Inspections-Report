@@ -402,6 +402,9 @@
       </ng-template>
 
       <section class="table-toolbar">
+        <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
+          Duplicate Selected
+        </button>
         <button type="button" (click)="addRow(pageIndex)">Add Row</button>
       </section>
 
@@ -462,7 +465,17 @@
             <td><input [(ngModel)]="row.density" [name]="'density' + pageIndex + '-' + rowIndex" /></td>
             <td><input [(ngModel)]="row.sensitivity" [name]="'sensitivity' + pageIndex + '-' + rowIndex" /></td>
             <td><input [(ngModel)]="row.filmSize" [name]="'filmSize' + pageIndex + '-' + rowIndex" /></td>
-            <td><textarea [(ngModel)]="row.observations" [name]="'obs' + pageIndex + '-' + rowIndex" rows="3"></textarea></td>
+            <td class="row-observations-cell">
+              <textarea [(ngModel)]="row.observations" [name]="'obs' + pageIndex + '-' + rowIndex" rows="3"></textarea>
+              <label class="row-selection-float">
+                <input
+                  type="checkbox"
+                  [ngModel]="!!row.selected"
+                  [name]="'rowSelected' + pageIndex + '-' + rowIndex"
+                  (ngModelChange)="toggleRowSelection(pageIndex, rowIndex, $event)"
+                />
+              </label>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -475,10 +488,17 @@
           <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
         </label>
 
-        <div class="abbreviation-row">
+        <div class="abbreviation-section">
           <strong>ABBREVIATION :</strong>
-          <textarea [(ngModel)]="abbreviationLeft" name="abbreviationLeft" rows="1"></textarea>
-          <textarea [(ngModel)]="abbreviationRight" name="abbreviationRight" rows="1"></textarea>
+          <div class="abbreviation-grid">
+            <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
+              <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
+                <span>{{ item.code }}</span>
+                <span>-</span>
+                <span>{{ item.description }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <section class="signature-grid">

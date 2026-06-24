@@ -505,6 +505,30 @@ button:disabled {
   padding: 10mm 12.5mm;
 }
 
+/* Row selection float */
+.row-observations-cell {
+  position: relative;
+}
+
+.row-selection-float {
+  position: absolute;
+  top: 50%;
+  right: -22mm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17mm;
+  min-height: 18px;
+  transform: translateY(-50%);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.row-selection-float input {
+  margin: 0;
+}
+
 /* ── Page edit tools (floated right) ── */
 .page-edit-tools {
   position: absolute;
@@ -806,6 +830,30 @@ select:focus {
   background: #fff;
 }
 
+/* Row selection float */
+.row-observations-cell {
+  position: relative;
+}
+
+.row-selection-float {
+  position: absolute;
+  top: 50%;
+  right: -22mm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17mm;
+  min-height: 18px;
+  transform: translateY(-50%);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.row-selection-float input {
+  margin: 0;
+}
+
 /* Remove row button */
 .remove-row {
   position: absolute;
@@ -868,29 +916,55 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
-.abbreviation-row {
+.abbreviation-section {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8mm;
   align-items: start;
-  gap: 3mm;
   border-bottom: 1px solid #333333;
-  padding: .8mm 2mm;
+  padding: .8mm 1.5mm;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
-.abbreviation-row strong {
+.abbreviation-section strong {
   padding-top: .4mm;
+  padding-right: 5mm;
   white-space: nowrap;
 }
 
-.abbreviation-row textarea {
+.abbreviation-grid {
+  display: grid;
+  gap: 1mm;
+  width: 100%;
+}
+
+.abbreviation-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1mm 2mm;
+  align-items: start;
+}
+
+.abbreviation-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .35mm;
+  min-width: 0;
   font-weight: 700;
-  min-height: 4.5mm;
-  padding: .2mm 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  min-height: 4mm;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  justify-self: start;
+}
+
+.abbreviation-item span:first-child {
+  flex: 0 0 auto;
+  min-width: 8mm;
+}
+
+.abbreviation-item span:last-child {
+  white-space: nowrap;
 }
 
 /* ── Signature grid ── */

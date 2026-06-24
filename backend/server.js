@@ -42,15 +42,44 @@ const {
   listDateCodes,
   ensureRelationship,
   getSequence,
-  advanceSequence
+  advanceSequence,
+  updateSequenceById,
+  deleteSequenceById
 } = require('./controllers/partDateCodeController');
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception in backend server:', {
+    message: error.message,
+    stack: error.stack
+  });
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection in backend server:', reason);
+});
+
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
+
+app.get('/api/health/db', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, database: 'connected' });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      database: 'disconnected',
+      message: error?.message || 'Database connection failed.'
+    });
+  }
+});
 
 app.get('/api/customers', getCustomers);
 app.get('/api/customers/', getCustomers);
@@ -79,6 +108,8 @@ app.get('/api/part-datecodes/date-codes', listDateCodes);
 app.post('/api/part-datecodes', ensureRelationship);
 app.get('/api/part-datecodes/sequence', getSequence);
 app.post('/api/part-datecodes/advance', advanceSequence);
+app.put('/api/part-datecodes/:id', updateSequenceById);
+app.delete('/api/part-datecodes/:id', deleteSequenceById);
 app.get('/api/part-datecodes', (req, res) => res.json({ ok: true }));
 app.get('/api/reports', listReports);
 app.get('/api/reports/next-number', getNablReportCounter);
