@@ -68,6 +68,11 @@ async function ensureCustomerPartsTable() {
   `);
 
   await pool.query(`
+    ALTER TABLE customer_parts
+    ADD COLUMN IF NOT EXISTS film_prefix VARCHAR(100)
+  `);
+
+  await pool.query(`
     UPDATE customer_parts
     SET date_code = COALESCE(date_code, film_prefix)
     WHERE date_code IS NULL AND film_prefix IS NOT NULL
