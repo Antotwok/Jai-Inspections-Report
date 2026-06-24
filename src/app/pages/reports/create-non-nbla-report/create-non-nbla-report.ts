@@ -7,6 +7,7 @@ import {
   OnDestroy,
   OnInit,
   QueryList,
+  ViewChild,
   ViewChildren
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -86,6 +87,7 @@ interface GenericRtDraft {
   inspectingOfficer: string;
   notes: string;
   footerPartName: string;
+  footerPartNameHtml: string;
   showFooterPartNameRow: boolean;
   footerPageLabel: string;
   footerFormatNo: string;
@@ -117,6 +119,7 @@ interface GenericRtHistoryState {
   inspectingOfficer: string;
   notes: string;
   footerPartName: string;
+  footerPartNameHtml: string;
   showFooterPartNameRow: boolean;
   footerPageLabel: string;
   footerFormatNo: string;
@@ -216,6 +219,7 @@ let nextFilmGroupId = 1;
 })
 export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, OnInit {
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
+  @ViewChild('footerPartNameEditor') private footerPartNameEditor?: ElementRef<HTMLDivElement>;
 
   readonly otherOption = OTHER_OPTION;
   private readonly acceptedObservationCodes = ['NSD', 'CCI', 'CCII'];
@@ -336,6 +340,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   inspectingOfficer = '';
   notes = "";
   footerPartName = '';
+  footerPartNameHtml = '';
   showFooterPartNameRow = false;
   footerPageLabel = 'Page';
   footerFormatNo = '';
@@ -368,6 +373,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   get appStatusLabel(): string {
     return this.appStatusMessage || 'Ready';
+  }
+
+  get footerPartNameText(): string {
+    return this.extractPlainTextFromHtml(this.footerPartNameHtml || this.footerPartName).trim();
   }
 
   get abbreviationRows(): Array<Array<{ code: string; description: string }>> {
@@ -562,9 +571,41 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.showFooterPartNameRow = !this.showFooterPartNameRow;
     if (!this.showFooterPartNameRow) {
       this.footerPartName = '';
+      this.footerPartNameHtml = '';
     }
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
+  }
+
+  onFooterPartNameInput(event: Event): void {
+    const element = event.target as HTMLDivElement;
+    this.footerPartNameHtml = element.innerHTML;
+    this.footerPartName = this.extractPlainTextFromHtml(this.footerPartNameHtml);
+    if (!this.showFooterPartNameRow && this.footerPartName.trim()) {
+      this.showFooterPartNameRow = true;
+    }
+    this.schedulePageBoundaryUpdate();
+  }
+
+  onFooterPartNamePaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    document.execCommand('insertText', false, text);
+    this.onFooterPartNameInput(event as unknown as Event);
+  }
+
+  alignFooterPartName(alignment: 'left' | 'center'): void {
+    const editor = this.footerPartNameEditor?.nativeElement;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(alignment === 'center' ? 'justifyCenter' : 'justifyLeft');
+    this.footerPartNameHtml = editor.innerHTML;
+    this.footerPartName = this.extractPlainTextFromHtml(this.footerPartNameHtml);
+    this.schedulePageBoundaryUpdate();
+  }
+
+  textToHtml(value: string): string {
+    return this.escapeHtml(value).replace(/\n/g, '<br>');
   }
 
   insertSampleRecords(): void {
@@ -981,9 +1022,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.inspectingOfficer = draft.inspectingOfficer ?? this.inspectingOfficer;
     this.notes = draft.notes ?? this.notes;
     this.footerPartName = typeof (draft as any).footerPartName === 'string' ? (draft as any).footerPartName : this.footerPartName;
+    this.footerPartNameHtml =
+      typeof (draft as any).footerPartNameHtml === 'string'
+        ? (draft as any).footerPartNameHtml
+        : this.textToHtml(this.footerPartName);
     this.showFooterPartNameRow =
       typeof (draft as any).showFooterPartNameRow === 'boolean' ? (draft as any).showFooterPartNameRow : this.showFooterPartNameRow;
-    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartName.trim();
+    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartNameText;
     this.footerPageLabel = draft.footerPageLabel ?? this.footerPageLabel;
     this.footerFormatNo = draft.footerFormatNo ?? this.footerFormatNo;
     this.footerFirstIssue = draft.footerFirstIssue ?? this.footerFirstIssue;
@@ -1252,6 +1297,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       inspectingOfficer: this.inspectingOfficer,
       notes: this.notes,
       footerPartName: this.footerPartName,
+      footerPartNameHtml: this.footerPartNameHtml,
       showFooterPartNameRow: this.showFooterPartNameRow,
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
@@ -1285,8 +1331,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.inspectingOfficer = snapshot.inspectingOfficer;
     this.notes = snapshot.notes;
     this.footerPartName = snapshot.footerPartName ?? '';
+    this.footerPartNameHtml = snapshot.footerPartNameHtml ?? this.textToHtml(this.footerPartName);
     this.showFooterPartNameRow = snapshot.showFooterPartNameRow ?? false;
-    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartName.trim();
+    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartNameText;
     this.footerPageLabel = snapshot.footerPageLabel;
     this.footerFormatNo = snapshot.footerFormatNo;
     this.footerFirstIssue = snapshot.footerFirstIssue;
@@ -2074,6 +2121,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       inspectingOfficer: this.inspectingOfficer,
       notes: this.notes,
       footerPartName: this.footerPartName,
+      footerPartNameHtml: this.footerPartNameHtml,
       showFooterPartNameRow: this.showFooterPartNameRow,
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
@@ -2458,6 +2506,21 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   private normalizeLabel(label: string): string {
     return label.replace(/\u00A0/g, ' ').trim();
+  }
+
+  private extractPlainTextFromHtml(value: string): string {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(value || '', 'text/html');
+    return doc.body.textContent || '';
+  }
+
+  private escapeHtml(value: string): string {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private todayIso(): string {

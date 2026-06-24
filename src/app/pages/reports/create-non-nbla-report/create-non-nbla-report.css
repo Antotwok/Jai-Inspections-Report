@@ -1197,25 +1197,37 @@ select:focus {
 
 .part-name-line {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 1.5mm;
 }
 
-.part-name-line input {
-  min-height: 4.2mm;
+.part-name-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 1mm;
+  flex-wrap: wrap;
+}
+
+.part-name-editor {
+  min-height: 6mm;
   border: 0;
   background: transparent;
   font-weight: 700;
   padding: 0;
-  text-align: center;
+  white-space: pre-wrap;
+  outline: none;
   width: 100%;
 }
 
+.part-name-editor:focus {
+  outline: none;
+}
+
 .add-part-name-btn,
+.align-part-name-btn,
 .remove-part-name-btn {
   min-height: 5.2mm;
-  min-width: 22mm;
   border-radius: 999px;
   font-size: 7.5px;
   font-weight: 700;
@@ -1236,6 +1248,13 @@ select:focus {
 .remove-part-name-btn {
   min-width: 7mm;
   padding: 0;
+}
+
+.align-part-name-btn {
+  min-width: 14mm;
+  background: #f3f7f5;
+  border-color: var(--line-2);
+  color: var(--text);
 }
 
 .end-report {
@@ -1595,6 +1614,7 @@ select:focus {
   }
 
   .add-part-name-btn,
+  .align-part-name-btn,
   .remove-part-name-btn {
     display: none !important;
   }
@@ -1633,6 +1653,10 @@ select:focus {
 
   .part-name-detail-row:not(.part-name-shown) {
     display: none !important;
+  }
+
+  .part-name-editor {
+    min-height: auto;
   }
 
   .rt-table th {

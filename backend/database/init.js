@@ -171,6 +171,7 @@ async function ensureReportsTable() {
       part_id INTEGER REFERENCES customer_parts(id) ON DELETE SET NULL,
       part_number VARCHAR(255),
       date_code VARCHAR(100),
+      film_prefix VARCHAR(100),
       film_series VARCHAR(100),
       sequence_start INTEGER,
       sequence_end INTEGER,
@@ -198,6 +199,11 @@ async function ensureReportsTable() {
   await pool.query(`
     ALTER TABLE reports
     ADD COLUMN IF NOT EXISTS date_code VARCHAR(255)
+  `);
+
+  await pool.query(`
+    ALTER TABLE reports
+    ADD COLUMN IF NOT EXISTS film_prefix VARCHAR(255)
   `);
 
   await pool.query(`

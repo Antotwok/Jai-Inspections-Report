@@ -324,7 +324,7 @@
                 <label>Remarks</label>
                 <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
               </div>
-              <div class="part-name-detail-row" [class.part-name-shown]="showFooterPartNameRow || footerPartName.trim()">
+              <div class="part-name-detail-row" [class.part-name-shown]="showFooterPartNameRow || footerPartNameText">
                 <button
                   type="button"
                   class="add-part-name-btn"
@@ -333,11 +333,23 @@
                 >
                   Add Part Name
                 </button>
-                <div class="part-name-line" *ngIf="showFooterPartNameRow || footerPartName.trim()">
-                  <input [(ngModel)]="footerPartName" [name]="'footerPartName'" placeholder="" />
-                  <button type="button" class="remove-part-name-btn" (click)="toggleFooterPartNameRow()" aria-label="Remove part name row">
-                    -
-                  </button>
+                <div class="part-name-line" *ngIf="showFooterPartNameRow || footerPartNameText">
+                  <div class="part-name-toolbar">
+                    <button type="button" class="align-part-name-btn" (click)="alignFooterPartName('left')">Left</button>
+                    <button type="button" class="align-part-name-btn" (click)="alignFooterPartName('center')">Center</button>
+                    <button type="button" class="remove-part-name-btn" (click)="toggleFooterPartNameRow()" aria-label="Remove part name row">
+                      -
+                    </button>
+                  </div>
+                  <div
+                    #footerPartNameEditor
+                    class="part-name-editor"
+                    contenteditable="true"
+                    spellcheck="false"
+                    [innerHTML]="footerPartNameHtml || textToHtml(footerPartName)"
+                    (input)="onFooterPartNameInput($event)"
+                    (paste)="onFooterPartNamePaste($event)"
+                  ></div>
                 </div>
               </div>
             </section>
