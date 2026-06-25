@@ -1,1 +1,19 @@
-<p>report-form works!</p>
+<main class="report-form-shell">
+  <header class="form-header">
+    <div>
+      <p class="eyebrow">Report Form</p>
+      <h1>Report entry</h1>
+    </div>
+    <div class="header-status">
+      <div class="status-block">
+        <span class="status-label">System Status</span>
+        <strong class="status-pill" [attr.data-status]="systemStatusType">{{ systemStatusMessage }}</strong>
+      </div>
+      <a routerLink="/">Dashboard</a>
+    </div>
+  </header>
+
+  <section class="placeholder-card">
+    <p>This module is ready for report form fields.</p>
+  </section>
+</main>

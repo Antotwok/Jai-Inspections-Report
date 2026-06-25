@@ -195,6 +195,22 @@ async function setSetting(settingKey, settingValue) {
   );
 }
 
+async function getJsonSetting(settingKey) {
+  const raw = await getSetting(settingKey);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error(`Failed to parse setting ${settingKey}:`, error);
+    return null;
+  }
+}
+
+async function setJsonSetting(settingKey, settingValue) {
+  await setSetting(settingKey, JSON.stringify(settingValue));
+}
+
 function parseReportNumber(reportNo) {
   const match = /\/\s*(\d{3,})\s*$/.exec(String(reportNo || ''));
   return match ? Number(match[1]) : null;
@@ -224,6 +240,37 @@ async function getNablReportCounter(req, res) {
     console.error('Failed to fetch NABL counter:', error);
     res.status(500).json({
       message: reportErrorMessage(error, 'Failed to fetch NABL counter.'),
+      details: error?.detail || null
+    });
+  }
+}
+
+async function getReportSettings(req, res) {
+  try {
+    const settings = await getJsonSetting('generic_rt_report_settings');
+    res.json({ settings });
+  } catch (error) {
+    console.error('Failed to fetch report settings:', error);
+    res.status(500).json({
+      message: reportErrorMessage(error, 'Failed to fetch report settings.'),
+      details: error?.detail || null
+    });
+  }
+}
+
+async function updateReportSettings(req, res) {
+  try {
+    const { settings } = req.body || {};
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({ message: 'Missing settings payload.' });
+    }
+
+    await setJsonSetting('generic_rt_report_settings', settings);
+    res.json({ message: 'Report settings saved successfully.', settings });
+  } catch (error) {
+    console.error('Failed to save report settings:', error);
+    res.status(500).json({
+      message: reportErrorMessage(error, 'Failed to save report settings.'),
       details: error?.detail || null
     });
   }
@@ -663,5 +710,7 @@ module.exports = {
   updateReport,
   deleteReport,
   getReportForEditor,
+  getReportSettings,
+  updateReportSettings,
   buildSearchableText
 };

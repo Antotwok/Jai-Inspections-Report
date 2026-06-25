@@ -74,7 +74,8 @@ async function ensureRelationship(req, res) {
     if (!partNumber || !dateCode) {
       return res.status(400).json({ message: 'part_number and date_code are required.' });
     }
-    const currentSequence = Number.isFinite(startingSequence) && startingSequence >= 0 ? Math.floor(startingSequence) : 0;
+    const initialSequence = Number.isFinite(startingSequence) && startingSequence > 0 ? Math.floor(startingSequence) : 1;
+    const currentSequence = Math.max(0, initialSequence - 1);
     const existing = await query(
       `SELECT * FROM part_datecode_sequences WHERE part_number = $1 AND date_code = $2`,
       [partNumber, dateCode]
@@ -100,6 +101,7 @@ async function ensureRelationship(req, res) {
     res.status(201).json({
       ...result.rows[0],
       created: true,
+      next_available_sequence: `J${String(initialSequence).padStart(3, '0')}`,
       message: 'Created new sequence.'
     });
   } catch (error) {

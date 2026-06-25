@@ -32,6 +32,8 @@ const {
   listReports,
   getReportById,
   getNablReportCounter,
+  getReportSettings,
+  updateReportSettings,
   createReport,
   updateReport,
   deleteReport,
@@ -113,6 +115,8 @@ app.delete('/api/part-datecodes/:id', deleteSequenceById);
 app.get('/api/part-datecodes', (req, res) => res.json({ ok: true }));
 app.get('/api/reports', listReports);
 app.get('/api/reports/next-number', getNablReportCounter);
+app.get('/api/reports/settings', getReportSettings);
+app.put('/api/reports/settings', updateReportSettings);
 app.get('/api/reports/:id', getReportById);
 app.get('/api/reports/:id/editor', getReportForEditor);
 app.post('/api/reports', createReport);

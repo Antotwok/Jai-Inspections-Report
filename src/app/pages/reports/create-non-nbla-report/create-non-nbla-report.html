@@ -114,15 +114,19 @@
             Lower details
             <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
           </label>
-          <label class="boundary-toggle">
-            <input
-              type="checkbox"
-              [(ngModel)]="showPageBoundaries"
-              name="showPageBoundaries"
-              (ngModelChange)="schedulePageBoundaryUpdate()"
-            />
-            Show Page Boundaries
-          </label>
+            <div class="mode-switch" role="group" aria-label="Layout mode">
+              <button type="button" [class.active]="layoutMode === 'edit'" (click)="setLayoutMode('edit')">Edit</button>
+              <button type="button" [class.active]="layoutMode === 'preview'" (click)="setLayoutMode('preview')">Preview</button>
+            </div>
+            <label class="boundary-toggle">
+              <input
+                type="checkbox"
+                [(ngModel)]="showPageBoundaries"
+                name="showPageBoundaries"
+                (ngModelChange)="schedulePageBoundaryUpdate()"
+              />
+              Layout Guide
+            </label>
         </div>
         <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
         <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
@@ -148,6 +152,7 @@
             <button type="button" (click)="addPage()">Add Page</button>
             <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex)">Remove Page</button>
           </div>
+          <div class="page-badge" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">Page {{ pageIndex + 1 }}</div>
 
           <header class="jia-letterhead">
           </header>
@@ -524,20 +529,22 @@
             <span><input [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
           </footer>
 
-          <div class="page-boundary-overlay" *ngIf="showPageBoundaries" aria-hidden="true">
+          <div class="page-boundary-overlay" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">
             <div
               class="page-overflow-zone"
               *ngIf="pageBoundaryState(pageIndex).hasOverflow"
               [style.top.px]="pageBoundaryState(pageIndex).overflowTop"
               [style.height.px]="pageBoundaryState(pageIndex).overflowHeight"
             ></div>
-            <div
-              class="page-boundary-line"
-              *ngFor="let boundary of pageBoundaryState(pageIndex).pageBreaks; trackBy: trackByIndex"
-              [style.top.px]="boundary.top"
-            >
-              <span>End of Page {{ boundary.pageNumber }}</span>
-            </div>
+            <ng-container *ngIf="pageBoundaryState(pageIndex).hasOverflow">
+              <div
+                class="page-boundary-line"
+                *ngFor="let boundary of pageBoundaryState(pageIndex).pageBreaks; trackBy: trackByIndex"
+                [style.top.px]="boundary.top"
+              >
+                <span>End of Page {{ boundary.pageNumber }}</span>
+              </div>
+            </ng-container>
           </div>
         </article>
       </section>
@@ -572,7 +579,7 @@
         />
         <button type="button" [disabled]="i === 0" (click)="moveDropdownOption(entry.key, i, -1)">Up</button>
         <button type="button" [disabled]="i === entry.setting.options.length - 1" (click)="moveDropdownOption(entry.key, i, 1)">Down</button>
-        <button type="button" (click)="removeDropdownOption(entry.key, i)">Save</button>
+        <button type="button" (click)="removeDropdownOption(entry.key, i)">Delete</button>
       </div>
       <button type="button" (click)="addDropdownOption(entry.key)">Add</button>
     </div>
@@ -589,35 +596,6 @@
       </div>
     </div>
 
-    <div class="settings-column text-size-column">
-      <h2>Individual Text Sizes</h2>
-      <div class="text-size-grid">
-        <label class="text-size-row" *ngFor="let field of customerFields; trackBy: trackByIndex">
-          <span>{{ field.label }}</span>
-          <input
-            type="number"
-            min="8"
-            max="14"
-            step="0.5"
-            [ngModel]="normalizeFontSize(field.fontSize, upperDetailsFontSize)"
-            [name]="'customerFontSize' + field.label"
-            (ngModelChange)="updateFieldFontSize(field, $event, upperDetailsFontSize)"
-          />
-        </label>
-        <label class="text-size-row" *ngFor="let field of reportFields; trackBy: trackByIndex">
-          <span>{{ field.label }}</span>
-          <input
-            type="number"
-            min="8"
-            max="14"
-            step="0.5"
-            [ngModel]="normalizeFontSize(field.fontSize, upperDetailsFontSize)"
-            [name]="'reportFontSize' + field.label"
-            (ngModelChange)="updateFieldFontSize(field, $event, upperDetailsFontSize)"
-          />
-        </label>
-      </div>
-    </div>
   </section>
 
   <div class="dialog-backdrop" *ngIf="dialogMode" role="presentation" (click)="closeDraftDialog()">

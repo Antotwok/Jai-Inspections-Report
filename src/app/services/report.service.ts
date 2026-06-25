@@ -65,4 +65,12 @@ export class ReportService {
   deleteReport(id: number) {
     return this.http.delete<{ message: string }>(`${this.api}/reports/${id}`);
   }
+
+  getReportSettings() {
+    return this.http.get<{ settings: any }>(`${this.api}/reports/settings`);
+  }
+
+  updateReportSettings(settings: any) {
+    return this.http.put<{ message: string; settings: any }>(`${this.api}/reports/settings`, { settings });
+  }
 }

@@ -505,6 +505,15 @@ button:disabled {
   padding: 10mm 12.5mm;
 }
 
+.rt-page::after {
+  content: '';
+  position: absolute;
+  inset: 8mm 8mm 10mm;
+  border: 1px solid rgba(12, 94, 74, 0.10);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 /* Row selection float */
 .row-observations-cell {
   position: relative;
@@ -556,6 +565,50 @@ button:disabled {
   border-radius: var(--radius-sm);
   font-size: 10px;
   padding: 4px 8px;
+}
+
+.page-badge {
+  position: absolute;
+  top: -10px;
+  left: 12mm;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid rgba(12, 94, 74, 0.22);
+  border-radius: 999px;
+  background: rgba(230, 244, 239, 0.92);
+  color: var(--brand-dark);
+  font: 700 10px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-soft);
+}
+
+.mode-switch button {
+  min-height: 28px;
+  border-radius: 999px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 10px;
+}
+
+.mode-switch button.active {
+  background: #fff;
+  border-color: var(--line-2);
+  color: var(--brand-dark);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Letterhead ── */
@@ -1112,10 +1165,10 @@ select:focus {
   right: 0;
   background: repeating-linear-gradient(
     135deg,
-    rgba(179,38,30,.07) 0,
-    rgba(179,38,30,.07) 7px,
-    rgba(179,38,30,.02) 7px,
-    rgba(179,38,30,.02) 14px
+    rgba(12,94,74,.07) 0,
+    rgba(12,94,74,.07) 8px,
+    rgba(12,94,74,.02) 8px,
+    rgba(12,94,74,.02) 16px
   );
 }
 
@@ -1123,17 +1176,18 @@ select:focus {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1.5px dashed #c5221f;
+  border-top: 1.5px dashed rgba(12,94,74,.55);
+  opacity: 0.9;
 }
 
 .page-boundary-line span {
   position: absolute;
   top: -10px;
   right: 4mm;
-  border: 1px solid #c5221f;
+  border: 1px solid rgba(12,94,74,.35);
   border-radius: var(--radius-sm);
-  background: #fff;
-  color: #a11f18;
+  background: #f7fbf9;
+  color: var(--brand-dark);
   font: 700 10px/1 var(--font);
   padding: 3px 6px;
   white-space: nowrap;

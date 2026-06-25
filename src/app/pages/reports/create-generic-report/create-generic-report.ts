@@ -120,7 +120,7 @@ type CombinationDialogMode = '' | 'addCombination';
 const OTHER_OPTION = '__OTHERS__';
 const DEFAULT_TABLE_COLUMN_WIDTHS = [4.3, 27.6, 9.2, 9.2, 9.2, 9.2, 9.2, 9.2, 13.9];
 const MIN_TABLE_COLUMN_WIDTH = 4;
-const PAGE_BOUNDARY_OFFSET_PX = 10;
+const PAGE_BOUNDARY_OFFSET_PX = 0;
 const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
@@ -185,6 +185,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private otherFieldLabels = new Set<string>();
 
   showPageBoundaries = true;
+  layoutMode: 'edit' | 'preview' = 'edit';
   showMenus = true;
   showCustomerPartSelection = true;
   pageBoundaryStates: PageBoundaryState[] = [];
@@ -244,6 +245,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.loadCustomers();
     void this.refreshPartNumberOptions();
     void this.refreshNextReportNumber();
+    void this.loadSettingsFromServer();
     const reportId = Number(this.route.snapshot.queryParamMap.get('reportId'));
     if (reportId) {
       void this.loadReportFromServer(reportId);
@@ -1278,7 +1280,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       setting.defaultValue = setting.options[0] ?? '';
     }
     this.persistSettings();
-    this.showSaveStatus('Settings saved successfully.', 'success');
+    this.showSaveStatus('Settings synced to database.', 'success');
   }
 
   moveDropdownOption(key: string, index: number, direction: -1 | 1): void {
@@ -1301,6 +1303,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
   persistSettings(): void {
     localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
+    void this.saveSettingsToServer();
     this.applyDefaultValuesToBlankFields();
   }
 
@@ -1385,7 +1388,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   schedulePageBoundaryUpdate(): void {
-    if (!this.showPageBoundaries || this.boundaryFrameId) return;
+    if (this.layoutMode !== 'edit' || !this.showPageBoundaries || this.boundaryFrameId) return;
 
     this.boundaryFrameId = requestAnimationFrame(() => {
       this.boundaryFrameId = 0;
@@ -1418,6 +1421,11 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       physicalPageNumber += pageBreakCount;
       return state;
     });
+  }
+
+  setLayoutMode(mode: 'edit' | 'preview'): void {
+    this.layoutMode = mode;
+    this.schedulePageBoundaryUpdate();
   }
 
   private createDraftSnapshot(): GenericRtDraft {
@@ -1786,25 +1794,62 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private loadSettings(): GenericRtSettings {
+    return this.defaultSettings();
+  }
+
+  private async loadSettingsFromServer(): Promise<void> {
     const defaults = this.defaultSettings();
-    const saved = localStorage.getItem(this.settingsStorageKey);
-    if (!saved) return defaults;
+    try {
+      const response = await firstValueFrom(this.reportService.getReportSettings());
+      const parsed = response?.settings && typeof response.settings === 'object' ? (response.settings as Partial<GenericRtSettings> & {
+        reportPrefixes?: string[];
+        exposureTechniques?: string[];
+        testPerformedBy?: string[];
+      }) : null;
 
-    const parsed = JSON.parse(saved) as Partial<GenericRtSettings> & {
-      reportPrefixes?: string[];
-      exposureTechniques?: string[];
-      testPerformedBy?: string[];
-    };
+      if (parsed) {
+        const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
+        if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
+        if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
+        if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
 
-    const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
-    if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
-    if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
-    if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
+        this.settings = {
+          dropdowns,
+          defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
+        };
+      } else {
+        this.settings = defaults;
+      }
+    } catch (error) {
+      const saved = localStorage.getItem(this.settingsStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<GenericRtSettings> & {
+          reportPrefixes?: string[];
+          exposureTechniques?: string[];
+          testPerformedBy?: string[];
+        };
+        const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
+        if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
+        if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
+        if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
+        this.settings = {
+          dropdowns,
+          defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
+        };
+      } else {
+        this.settings = defaults;
+      }
+      console.error('Failed to load report settings from server:', error);
+    }
+    this.applyDefaultValuesToBlankFields();
+  }
 
-    return {
-      dropdowns,
-      defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
-    };
+  private async saveSettingsToServer(): Promise<void> {
+    try {
+      await firstValueFrom(this.reportService.updateReportSettings(this.settings));
+    } catch (error) {
+      console.error('Failed to save report settings to server:', error);
+    }
   }
 
   private dropdownDefault(key: DropdownKey): string {
