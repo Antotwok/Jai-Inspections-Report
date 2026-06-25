@@ -296,6 +296,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   ngOnInit(): void {
     this.loadCustomers();
+    void this.loadSettingsFromServer();
     const reportId = Number(this.route.snapshot.queryParamMap.get('reportId'));
     if (reportId) {
       void this.loadReportFromServer(reportId);
@@ -1939,7 +1940,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       setting.defaultValue = setting.options[0] ?? '';
     }
     this.persistSettings();
-    this.setAppStatus('Settings Saved Successfully', 'saved');
+    this.setAppStatus('Settings synced to database', 'saved');
   }
 
   moveDropdownOption(key: string, index: number, direction: -1 | 1): void {
@@ -1962,6 +1963,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   persistSettings(): void {
     localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
+    void this.saveSettingsToServer();
     this.applyDefaultValuesToBlankFields();
   }
 
@@ -2473,25 +2475,61 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private loadSettings(): GenericRtSettings {
+    return this.defaultSettings();
+  }
+
+  private async loadSettingsFromServer(): Promise<void> {
     const defaults = this.defaultSettings();
-    const saved = localStorage.getItem(this.settingsStorageKey);
-    if (!saved) return defaults;
+    try {
+      const response = await firstValueFrom(this.reportService.getReportSettings());
+      const parsed = response?.settings && typeof response.settings === 'object' ? (response.settings as Partial<GenericRtSettings> & {
+        reportPrefixes?: string[];
+        exposureTechniques?: string[];
+        testPerformedBy?: string[];
+      }) : null;
 
-    const parsed = JSON.parse(saved) as Partial<GenericRtSettings> & {
-      reportPrefixes?: string[];
-      exposureTechniques?: string[];
-      testPerformedBy?: string[];
-    };
+      if (parsed) {
+        const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
+        if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
+        if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
+        if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
+        this.settings = {
+          dropdowns,
+          defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
+        };
+      } else {
+        this.settings = defaults;
+      }
+    } catch (error) {
+      const saved = localStorage.getItem(this.settingsStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<GenericRtSettings> & {
+          reportPrefixes?: string[];
+          exposureTechniques?: string[];
+          testPerformedBy?: string[];
+        };
+        const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
+        if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
+        if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
+        if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
+        this.settings = {
+          dropdowns,
+          defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
+        };
+      } else {
+        this.settings = defaults;
+      }
+      console.error('Failed to load report settings from server:', error);
+    }
+    this.applyDefaultValuesToBlankFields();
+  }
 
-    const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
-    if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
-    if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
-    if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
-
-    return {
-      dropdowns,
-      defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
-    };
+  private async saveSettingsToServer(): Promise<void> {
+    try {
+      await firstValueFrom(this.reportService.updateReportSettings(this.settings));
+    } catch (error) {
+      console.error('Failed to save report settings to server:', error);
+    }
   }
 
   private dropdownDefault(key: DropdownKey): string {

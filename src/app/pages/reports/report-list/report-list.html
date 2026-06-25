@@ -1,1 +1,19 @@
-<p>report-list works!</p>
+<main class="report-list-shell">
+  <header class="list-header">
+    <div>
+      <p class="eyebrow">Report List</p>
+      <h1>Available reports</h1>
+    </div>
+    <div class="header-status">
+      <div class="status-block">
+        <span class="status-label">System Status</span>
+        <strong class="status-pill" [attr.data-status]="systemStatusType">{{ systemStatusMessage }}</strong>
+      </div>
+      <a routerLink="/">Dashboard</a>
+    </div>
+  </header>
+
+  <section class="placeholder-card">
+    <p>This module is ready for report listing filters and actions.</p>
+  </section>
+</main>

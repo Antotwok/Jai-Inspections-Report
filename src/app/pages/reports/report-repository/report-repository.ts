@@ -16,6 +16,8 @@ export class ReportRepositoryComponent implements OnInit {
   reports: StoredReport[] = [];
   loading = false;
   message = '';
+  systemStatusMessage = 'Ready';
+  systemStatusType: 'ready' | 'loading' | 'saved' | 'error' = 'ready';
   filters = { q: '', reportType: '', status: '' };
 
   constructor(
@@ -29,10 +31,13 @@ export class ReportRepositoryComponent implements OnInit {
 
   async loadReports(): Promise<void> {
     this.loading = true;
+    this.setSystemStatus('Loading reports...', 'loading');
     try {
       this.reports = await firstValueFrom(this.reportService.listReports(this.filters));
+      this.setSystemStatus('Reports loaded successfully.', 'saved');
     } catch (error: any) {
       this.message = error?.error?.message || 'Failed to load reports.';
+      this.setSystemStatus(this.message, 'error');
     } finally {
       this.loading = false;
     }
@@ -40,7 +45,9 @@ export class ReportRepositoryComponent implements OnInit {
 
   async deleteReport(report: StoredReport): Promise<void> {
     if (!confirm(`Delete report ${report.report_no}?`)) return;
+    this.setSystemStatus(`Deleting report ${report.report_no}...`, 'loading');
     await firstValueFrom(this.reportService.deleteReport(report.id));
+    this.setSystemStatus(`Report ${report.report_no} deleted.`, 'saved');
     await this.loadReports();
   }
 
@@ -91,5 +98,10 @@ export class ReportRepositoryComponent implements OnInit {
     return parsed
       .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
       .replace(/\s/g, '');
+  }
+
+  private setSystemStatus(message: string, type: 'ready' | 'loading' | 'saved' | 'error'): void {
+    this.systemStatusMessage = message;
+    this.systemStatusType = type;
   }
 }
