@@ -185,6 +185,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private otherFieldLabels = new Set<string>();
 
   showPageBoundaries = true;
+  layoutMode: 'edit' | 'preview' = 'edit';
   showMenus = true;
   showCustomerPartSelection = true;
   pageBoundaryStates: PageBoundaryState[] = [];
@@ -1387,7 +1388,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   schedulePageBoundaryUpdate(): void {
-    if (!this.showPageBoundaries || this.boundaryFrameId) return;
+    if (this.layoutMode !== 'edit' || !this.showPageBoundaries || this.boundaryFrameId) return;
 
     this.boundaryFrameId = requestAnimationFrame(() => {
       this.boundaryFrameId = 0;
@@ -1420,6 +1421,11 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       physicalPageNumber += pageBreakCount;
       return state;
     });
+  }
+
+  setLayoutMode(mode: 'edit' | 'preview'): void {
+    this.layoutMode = mode;
+    this.schedulePageBoundaryUpdate();
   }
 
   private createDraftSnapshot(): GenericRtDraft {

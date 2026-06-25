@@ -569,8 +569,8 @@ button:disabled {
 
 .page-badge {
   position: absolute;
-  top: 7mm;
-  left: 11mm;
+  top: -10px;
+  left: 12mm;
   z-index: 10;
   display: inline-flex;
   align-items: center;
@@ -582,6 +582,33 @@ button:disabled {
   color: var(--brand-dark);
   font: 700 10px/1 var(--font-mono);
   letter-spacing: 0.04em;
+}
+
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-soft);
+}
+
+.mode-switch button {
+  min-height: 28px;
+  border-radius: 999px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 10px;
+}
+
+.mode-switch button.active {
+  background: #fff;
+  border-color: var(--line-2);
+  color: var(--brand-dark);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Letterhead ── */
@@ -1150,6 +1177,7 @@ select:focus {
   left: 0;
   right: 0;
   border-top: 1.5px dashed rgba(12,94,74,.55);
+  opacity: 0.9;
 }
 
 .page-boundary-line span {

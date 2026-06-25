@@ -237,6 +237,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private suppressHistoryCapture = false;
 
   showPageBoundaries = true;
+  layoutMode: 'edit' | 'preview' = 'edit';
   showMenus = true;
   showCustomerPartSelection = true;
   pageBoundaryStates: PageBoundaryState[] = [];
@@ -2063,7 +2064,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   schedulePageBoundaryUpdate(): void {
-    if (!this.showPageBoundaries || this.boundaryFrameId) return;
+    if (this.layoutMode !== 'edit' || !this.showPageBoundaries || this.boundaryFrameId) return;
 
     this.boundaryFrameId = requestAnimationFrame(() => {
       this.boundaryFrameId = 0;
@@ -2476,6 +2477,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   private loadSettings(): GenericRtSettings {
     return this.defaultSettings();
+  }
+
+  setLayoutMode(mode: 'edit' | 'preview'): void {
+    this.layoutMode = mode;
+    this.schedulePageBoundaryUpdate();
   }
 
   private async loadSettingsFromServer(): Promise<void> {
