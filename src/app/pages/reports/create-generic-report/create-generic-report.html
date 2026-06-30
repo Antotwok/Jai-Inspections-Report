@@ -23,6 +23,10 @@
     <button type="button" (click)="openLoadDialog()">Load</button>
     <button type="button" (click)="openUpdateDialog()">Update</button>
     <button type="button" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
+    <label class="boundary-toggle">
+      <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
+      Auto count
+    </label>
     <button type="button" class="quiet-action" [disabled]="!selectedDraftToLoad" (click)="openDeleteDraftDialog(selectedDraftToLoad)">
       Delete
     </button>
@@ -35,6 +39,10 @@
       <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
     </label>
     <label class="font-size-control">
+      Upper line spacing
+      <input type="number" min="0.75" max="1.4" step="0.05" [(ngModel)]="upperDetailsLineHeight" name="upperDetailsLineHeight" (ngModelChange)="updateUpperDetailsLineHeight($event)" />
+    </label>
+    <label class="font-size-control">
       Lower details
       <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
     </label>
@@ -42,15 +50,27 @@
         <button type="button" [class.active]="layoutMode === 'edit'" (click)="setLayoutMode('edit')">Edit</button>
         <button type="button" [class.active]="layoutMode === 'preview'" (click)="setLayoutMode('preview')">Preview</button>
       </div>
-      <label class="boundary-toggle">
-        <input
-          type="checkbox"
-          [(ngModel)]="showPageBoundaries"
-          name="showPageBoundaries"
-          (ngModelChange)="schedulePageBoundaryUpdate()"
-        />
-        Layout Guide
-      </label>
+    <label class="boundary-toggle">
+      <input
+        type="checkbox"
+        [(ngModel)]="showPageBoundaries"
+        name="showPageBoundaries"
+        (ngModelChange)="schedulePageBoundaryUpdate()"
+      />
+      Layout Guide
+    </label>
+    <label class="font-size-control">
+      End of page shift (cm)
+      <input
+        type="number"
+        min="0"
+        max="10"
+        step="0.1"
+        [(ngModel)]="pageBoundaryShiftCm"
+        name="pageBoundaryShiftCm"
+        (ngModelChange)="schedulePageBoundaryUpdate()"
+      />
+    </label>
     <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
     <span class="save-status-message" *ngIf="saveStatusMessage" [class.success]="saveStatusType === 'success'" [class.error]="saveStatusType === 'error'">
       {{ saveStatusMessage }}
@@ -186,12 +206,19 @@
       class="rt-page"
       *ngFor="let page of pages; let pageIndex = index; trackBy: trackByIndex"
       [style.--upper-details-font-size]="upperDetailsFontSize + 'px'"
+      [style.--upper-details-line-height]="upperDetailsLineHeight"
       [style.--lower-details-font-size]="lowerDetailsFontSize + 'px'"
     >
       <div class="page-edit-tools">
         <span>Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
         <button type="button" (click)="addPage()">Add Page</button>
         <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex)">Remove Page</button>
+      </div>
+      <div class="page-row-tools" *ngIf="layoutMode === 'edit'">
+        <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
+          Duplicate Selected
+        </button>
+        <button type="button" (click)="addRow(pageIndex)">Add Row</button>
       </div>
       <div class="page-badge" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">Page {{ pageIndex + 1 }}</div>
 
@@ -204,7 +231,20 @@
 
         <section class="details-grid">
           <div class="detail-row" *ngFor="let pair of detailPairs; let i = index; trackBy: trackByIndex">
-            <label>{{ pair.customer?.label }}</label>
+            <label>
+              <span *ngIf="pair.customer?.label === 'Customer Name & Address *'; else customerLabelText" class="wrapped-label">
+                Customer Name<br />& Address *
+              </span>
+              <ng-template #customerLabelText>
+                <input
+                  type="text"
+                  *ngIf="pair.customer"
+                  [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
+                  [(ngModel)]="pair.customer.label"
+                  [name]="'customerLabel' + i"
+                />
+              </ng-template>
+            </label>
             <ng-container *ngIf="pair.customer">
               <ng-container *ngIf="dropdownKeyForLabel(pair.customer.label); else plainCustomerTextarea">
                 <div class="dropdown-with-other" [class.has-custom]="isOtherFieldSelected(pair.customer, dropdownKeyForLabel(pair.customer.label))">
@@ -241,6 +281,13 @@
             <span class="empty-detail" *ngIf="!pair.customer"></span>
 
             <label>
+              <input
+                type="text"
+                *ngIf="pair.report && !isSourceSizeSelectorLabel(pair.report.label) && !isExposureSelectorLabel(pair.report.label)"
+                [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                [(ngModel)]="pair.report.label"
+                [name]="'reportLabelBase' + i"
+              />
               <ng-container *ngIf="pair.report && isExposureSelectorLabel(pair.report.label); else sourceSizeOrPlainLabel">
                 <select
                   class="label-select"
@@ -265,7 +312,7 @@
                   </select>
                 </ng-container>
               </ng-template>
-              <ng-template #plainReportLabel>{{ pair.report?.label }}</ng-template>
+              <ng-template #plainReportLabel></ng-template>
             </label>
             <ng-container *ngIf="pair.report">
               <div
@@ -273,7 +320,13 @@
                 *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'; else reportDateOrText"
                 [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
               >
-                <span class="report-prefix">JIA / RT-</span>
+                <input
+                  class="report-prefix"
+                  type="text"
+                  [ngModel]="reportNumberPrefix"
+                  name="reportNumberPrefix"
+                  (ngModelChange)="reportNumberPrefix = $event; updateReportNumber()"
+                />
                 <input
                   type="text"
                   [ngModel]="reportNumberDigits"
@@ -377,13 +430,6 @@
         </section>
       </ng-template>
 
-      <section class="table-toolbar">
-        <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
-          Duplicate Selected
-        </button>
-        <button type="button" (click)="addRow(pageIndex)">Add Row</button>
-      </section>
-
       <table class="rt-table">
         <colgroup>
           <col *ngFor="let width of tableColumnWidths; let columnIndex = index; trackBy: trackByIndex" [style.width]="tableColumnWidth(columnIndex)" />
@@ -391,18 +437,12 @@
         <thead>
           <tr>
             <th *ngFor="let header of tableHeaders; let columnIndex = index; trackBy: trackByIndex">
-              <select
+              <textarea
                 class="table-header-label"
-                *ngIf="header === 'S.F.D'; else plainTableHeader"
-                [(ngModel)]="sfdColumnLabel"
-                name="sfdColumnLabel"
-              >
-                <option value="S.F.D">S.F.D</option>
-                <option value="F.F.D">F.F.D</option>
-              </select>
-              <ng-template #plainTableHeader>
-                <span class="table-header-label">{{ tableHeaderLabel(header) }}</span>
-              </ng-template>
+                rows="2"
+                [(ngModel)]="tableHeaders[columnIndex]"
+                [name]="'tableHeader' + columnIndex"
+              ></textarea>
               <button
                 type="button"
                 class="column-resize-handle"
@@ -418,8 +458,28 @@
             *ngFor="let row of page.rows; let rowIndex = index; trackBy: trackByIndex"
             [style.font-size]="rowFontSize(row)"
           >
-            <td class="sr-cell">
+            <td
+              class="sr-cell"
+              *ngIf="showDescriptionCell(pageIndex, rowIndex)"
+              [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)"
+            >
               <button type="button" class="remove-row" aria-label="Remove row" (click)="removeRow(pageIndex, rowIndex)">-</button>
+              <button
+                type="button"
+                class="remove-row"
+                style="left: -9mm; top: 7mm;"
+                aria-label="Combine with next row"
+                *ngIf="canCombineRow(pageIndex, rowIndex)"
+                (click)="combineWithNext(pageIndex, rowIndex)"
+              >+</button>
+              <button
+                type="button"
+                class="remove-row"
+                style="left: -9mm; top: 13mm;"
+                aria-label="Uncombine row"
+                *ngIf="canUncombineRow(pageIndex, rowIndex)"
+                (click)="uncombineRow(pageIndex, rowIndex)"
+              >x</button>
               {{ serialNumber(pageIndex, rowIndex) }}
               <label class="row-font-size-control">
                 <span>Size</span>
@@ -427,14 +487,16 @@
                   type="number"
                   min="8"
                   max="14"
-                  step="0.5"
-                  [ngModel]="normalizeFontSize(row.fontSize, lowerDetailsFontSize)"
+                  step="1"
+                  [ngModel]="normalizeRowFontSize(row.fontSize, lowerDetailsFontSize)"
                   [name]="'rowFontSize' + pageIndex + '-' + rowIndex"
                   (ngModelChange)="updateRowFontSize(row, $event)"
                 />
               </label>
             </td>
-            <td><textarea [(ngModel)]="row.description" [name]="'desc' + pageIndex + '-' + rowIndex" rows="4"></textarea></td>
+            <td *ngIf="showDescriptionCell(pageIndex, rowIndex)" [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)">
+              <textarea [(ngModel)]="row.description" [name]="'desc' + pageIndex + '-' + rowIndex" rows="4"></textarea>
+            </td>
             <td><input [(ngModel)]="row.thickness" [name]="'thick' + pageIndex + '-' + rowIndex" /></td>
             <td><input [(ngModel)]="row.segment" [name]="'segment' + pageIndex + '-' + rowIndex" /></td>
             <td><input [(ngModel)]="row.sfd" [name]="'sfd' + pageIndex + '-' + rowIndex" /></td>
@@ -460,12 +522,12 @@
 
       <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
         <label class="remarks-line">
-          <span>Remarks :</span>
+          <span><input type="text" [(ngModel)]="remarksLabel" name="remarksLabel" /></span>
           <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
         </label>
 
         <div class="abbreviation-section">
-          <strong>ABBREVIATION :</strong>
+          <strong><input type="text" [(ngModel)]="abbreviationLabel" name="abbreviationLabel" /></strong>
           <div class="abbreviation-grid">
             <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
               <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
@@ -507,13 +569,13 @@
         </section>
 
         <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
-        <div class="end-report">**** &nbsp; End of Report &nbsp; ****</div>
+        <div class="end-report"><input type="text" [(ngModel)]="endOfReportLabel" name="endOfReportLabel" /></div>
       </section>
 
       <footer class="page-footer">
-        <span><input [(ngModel)]="footerPageLabel" name="footerPageLabel" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
-        <span><input [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
-        <span><input [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
+        <span><input type="text" [(ngModel)]="footerPageLabelText" name="footerPageLabelText" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
+        <span><input type="text" [(ngModel)]="footerFormatNoText" name="footerFormatNoText" /> <input type="text" [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
+        <span><input type="text" [(ngModel)]="footerFirstIssueText" name="footerFirstIssueText" /> <input type="text" [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
       </footer>
 
         <div class="page-boundary-overlay" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">

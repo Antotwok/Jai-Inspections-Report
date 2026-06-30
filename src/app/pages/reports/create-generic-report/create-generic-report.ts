@@ -64,6 +64,7 @@ interface GenericRtDraft {
   selectedReportPrefix?: string;
   customReportPrefix?: string;
   reportNumberDigits: string;
+  reportNumberPrefix?: string;
   issueDatePickerValue: string;
   examinationDatePickerValue: string;
   itemReceiptDateTimePickerValue: string;
@@ -120,7 +121,7 @@ type CombinationDialogMode = '' | 'addCombination';
 const OTHER_OPTION = '__OTHERS__';
 const DEFAULT_TABLE_COLUMN_WIDTHS = [4.3, 27.6, 9.2, 9.2, 9.2, 9.2, 9.2, 9.2, 13.9];
 const MIN_TABLE_COLUMN_WIDTH = 4;
-const PAGE_BOUNDARY_OFFSET_PX = 0;
+const PX_PER_CM = 37.7952755906;
 const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
@@ -178,13 +179,14 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private readonly namedDraftsStorageKey = 'jai-generic-rt-report-named-drafts';
   private readonly settingsStorageKey = 'jai-generic-rt-report-settings';
   private readonly a4WidthMm = 210;
-  private readonly a4HeightMm = 297;
+  private readonly a4HeightMm = 302;
   private resizeObserver?: ResizeObserver;
   private boundaryFrameId = 0;
   private lastGeneratedDescription = '';
   private otherFieldLabels = new Set<string>();
 
   showPageBoundaries = true;
+  pageBoundaryShiftCm = 4.5;
   layoutMode: 'edit' | 'preview' = 'edit';
   showMenus = true;
   showCustomerPartSelection = true;
@@ -205,8 +207,10 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   readonly tableHeaders = ['Sr.\nNo', 'Description', 'Thick\nness', 'Segment', 'S.F.D', 'Density', 'Sensitivity', 'Film\nSize', 'Observations'];
   sfdColumnLabel = 'S.F.D';
   upperDetailsFontSize = 10.5;
+  upperDetailsLineHeight = 1.0;
   lowerDetailsFontSize = 10.5;
   reportNumberDigits = '';
+  reportNumberPrefix = 'JIA / RT-';
   issueDatePickerValue = this.todayIso();
   examinationDatePickerValue = this.todayIso();
   itemReceiptDateTimePickerValue = this.todayIso();
@@ -227,6 +231,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   startingSequence = 0;
   sequenceMissingMessage = '';
   combinationSaveMessage = '';
+  autoCountEnabled = false;
   partNumberDatalistId = 'part-number-options';
   dateCodeDatalistId = 'date-code-options';
 
@@ -304,6 +309,12 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   footerPageLabel = 'Page';
   footerFormatNo = 'Format No : JIA / F /010, , REV 01';
   footerFirstIssue = 'First Issue : 26-11-2025';
+  remarksLabel = 'Remarks :';
+  abbreviationLabel = 'ABBREVIATION :';
+  endOfReportLabel = '****   End of Report   ****';
+  footerPageLabelText = 'Page';
+  footerFormatNoText = 'Format No';
+  footerFirstIssueText = 'First Issue';
 
   get pageCount(): number {
     return this.pages.length;
@@ -449,7 +460,15 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       return;
     }
 
-    rows.push(...this.cloneRowGroup(rows, rows.length - 1));
+    if (previous.filmGroupId) {
+      rows.push(...this.cloneRowGroup(rows, rows.length - 1));
+    } else {
+      if (this.autoCountEnabled) {
+        rows.push(this.cloneRowWithAutoCount(previous));
+      } else {
+        rows.push(this.cloneRow(previous));
+      }
+    }
     this.schedulePageBoundaryUpdate();
   }
 
@@ -486,8 +505,66 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     const rows = this.pages[pageIndex].rows;
     if (rows.length === 1) return;
     rows.splice(rowIndex, 1);
+    this.rebalanceFilmGroups(rows);
     this.clearRowSelection(rows);
     this.schedulePageBoundaryUpdate();
+  }
+
+  canCombineRow(pageIndex: number, rowIndex: number): boolean {
+    const rows = this.pages[pageIndex].rows;
+    const current = rows[rowIndex];
+    const next = rows[rowIndex + 1];
+    if (!current || !next) return false;
+    return this.sameRowContext(current, next);
+  }
+
+  combineWithNext(pageIndex: number, rowIndex: number): void {
+    const rows = this.pages[pageIndex].rows;
+    const current = rows[rowIndex];
+    const next = rows[rowIndex + 1];
+    if (!current || !next || !this.sameRowContext(current, next)) return;
+
+    const groupId = current.filmGroupId || next.filmGroupId || this.createFilmGroupId();
+    current.filmGroupId = groupId;
+    next.filmGroupId = groupId;
+    this.schedulePageBoundaryUpdate();
+  }
+
+  canUncombineRow(pageIndex: number, rowIndex: number): boolean {
+    const rows = this.pages[pageIndex].rows;
+    const row = rows[rowIndex];
+    if (!row?.filmGroupId) return false;
+    return this.rowGroupRowspan(pageIndex, rowIndex) > 1;
+  }
+
+  uncombineRow(pageIndex: number, rowIndex: number): void {
+    const rows = this.pages[pageIndex].rows;
+    const row = rows[rowIndex];
+    if (!row?.filmGroupId) return;
+
+    const groupId = row.filmGroupId;
+    rows
+      .filter((candidate) => candidate.filmGroupId === groupId)
+      .forEach((candidate) => delete candidate.filmGroupId);
+    this.schedulePageBoundaryUpdate();
+  }
+
+  rowGroupRowspan(pageIndex: number, rowIndex: number): number {
+    const rows = this.pages[pageIndex].rows;
+    const row = rows[rowIndex];
+    if (!row?.filmGroupId) return 1;
+    if (rowIndex > 0 && rows[rowIndex - 1]?.filmGroupId === row.filmGroupId) return 0;
+
+    let span = 1;
+    for (let i = rowIndex + 1; i < rows.length; i++) {
+      if (rows[i]?.filmGroupId !== row.filmGroupId) break;
+      span += 1;
+    }
+    return span;
+  }
+
+  showDescriptionCell(pageIndex: number, rowIndex: number): boolean {
+    return this.rowGroupRowspan(pageIndex, rowIndex) !== 0;
   }
 
   printReport(): void {
@@ -761,6 +838,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.footerPageLabel = draft.footerPageLabel ?? this.footerPageLabel;
     this.footerFormatNo = draft.footerFormatNo ?? this.footerFormatNo;
     this.footerFirstIssue = draft.footerFirstIssue ?? this.footerFirstIssue;
+    this.reportNumberPrefix = draft.reportNumberPrefix ?? this.reportNumberPrefix;
     this.tableColumnWidths = this.normalizeTableColumnWidths(draft.tableColumnWidths);
     this.sfdColumnLabel = draft.sfdColumnLabel === 'F.F.D' ? 'F.F.D' : 'S.F.D';
     this.upperDetailsFontSize = this.normalizeFontSize(draft.upperDetailsFontSize, 10.5);
@@ -978,13 +1056,13 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   onReportDigitsChange(value: string): void {
-    const prefix = 'JIA / RT-';
+    const prefix = this.reportNumberPrefix || 'JIA / RT-';
     this.reportNumberDigits = value.startsWith(prefix) ? value.slice(prefix.length) : value;
     this.updateReportNumber();
   }
 
   updateReportNumber(): void {
-    const prefix = 'JIA / RT-';
+    const prefix = this.reportNumberPrefix || 'JIA / RT-';
     let value = this.reportNumberDigits || '';
     if (value.startsWith(prefix)) {
       value = value.slice(prefix.length);
@@ -1003,7 +1081,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   rowFontSize(row: GenericRtRow): string {
-    return `${this.normalizeFontSize(row.fontSize, this.lowerDetailsFontSize)}px`;
+    return `${this.normalizeRowFontSize(row.fontSize, this.lowerDetailsFontSize)}px`;
   }
 
   updateFieldFontSize(field: ReportField, value: number | string, fallback: number): void {
@@ -1011,8 +1089,15 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
+  updateUpperDetailsLineHeight(value: number | string): void {
+    const next = Number(value);
+    if (!Number.isFinite(next)) return;
+    this.upperDetailsLineHeight = Math.min(1.4, Math.max(0.75, next));
+    this.schedulePageBoundaryUpdate();
+  }
+
   updateRowFontSize(row: GenericRtRow, value: number | string): void {
-    row.fontSize = this.normalizeFontSize(Number(value), this.lowerDetailsFontSize);
+    row.fontSize = this.normalizeRowFontSize(Number(value), this.lowerDetailsFontSize);
     this.schedulePageBoundaryUpdate();
   }
 
@@ -1399,6 +1484,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private updatePageBoundaries(): void {
     const pageElements = this.reportPageElements?.toArray() ?? [];
     let physicalPageNumber = 1;
+    const pageBoundaryShiftPx = Math.round(this.pageBoundaryShiftCm * PX_PER_CM);
 
     this.pageBoundaryStates = pageElements.map((pageElement) => {
       const element = pageElement.nativeElement;
@@ -1407,7 +1493,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       const occupiedHeight = Math.max(element.scrollHeight, rect.height);
       const pageBreakCount = Math.max(1, Math.ceil(occupiedHeight / a4PageHeight));
       const pageBreaks = Array.from({ length: pageBreakCount }, (_, index) => ({
-        top: Math.max(0, Math.round(a4PageHeight * (index + 1)) - PAGE_BOUNDARY_OFFSET_PX),
+        top: Math.max(0, Math.round(a4PageHeight * (index + 1)) + pageBoundaryShiftPx),
         pageNumber: physicalPageNumber + index
       }));
       const hasOverflow = occupiedHeight > a4PageHeight + 1;
@@ -1452,6 +1538,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
+      reportNumberPrefix: this.reportNumberPrefix,
       tableColumnWidths: this.tableColumnWidths,
       sfdColumnLabel: this.sfdColumnLabel
     };
@@ -1528,6 +1615,12 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       cloned.filmGroupId = filmGroupId;
     }
     delete cloned.selected;
+    return cloned;
+  }
+
+  private cloneRowWithAutoCount(row: GenericRtRow): GenericRtRow {
+    const cloned = this.cloneRow(row);
+    cloned.description = this.incrementTrailingNumber(cloned.description);
     return cloned;
   }
 
@@ -1650,6 +1743,16 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     return value.slice(firstDash + 1, lastDash);
   }
 
+  private incrementTrailingNumber(value: string): string {
+    const text = String(value || '');
+    const match = /(.*?)(\d+)(\D*)$/.exec(text);
+    if (!match) return text;
+
+    const [, prefix, digits, suffix] = match;
+    const nextDigits = String(Number(digits) + 1).padStart(digits.length, '0');
+    return `${prefix}${nextDigits}${suffix}`;
+  }
+
   private createFilmGroupId(): string {
     return `film-group-${nextFilmGroupId++}`;
   }
@@ -1669,6 +1772,35 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     const newGroupId = this.createFilmGroupId();
 
     return groupRows.map((row) => this.cloneRow(row, newGroupId));
+  }
+
+  private sameRowContext(a: GenericRtRow, b: GenericRtRow): boolean {
+    return (
+      a.description === b.description &&
+      a.thickness === b.thickness &&
+      a.segment === b.segment &&
+      a.sfd === b.sfd &&
+      a.density === b.density &&
+      a.sensitivity === b.sensitivity &&
+      a.filmSize === b.filmSize &&
+      a.observations === b.observations &&
+      a.result === b.result
+    );
+  }
+
+  private rebalanceFilmGroups(rows: GenericRtRow[]): void {
+    const groupedRows = rows.filter((row) => row.filmGroupId);
+    if (!groupedRows.length) return;
+
+    const seen = new Set<string>();
+    groupedRows.forEach((row) => {
+      if (!row.filmGroupId || seen.has(row.filmGroupId)) return;
+      seen.add(row.filmGroupId);
+      const members = rows.filter((candidate) => candidate.filmGroupId === row.filmGroupId);
+      if (members.length < 2) {
+        members.forEach((member) => delete member.filmGroupId);
+      }
+    });
   }
 
   private getSelectedRowIndexes(rows: GenericRtRow[]): number[] {
@@ -1871,6 +2003,11 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     return Math.min(14, Math.max(8, size));
   }
 
+  normalizeRowFontSize(value: number | undefined, fallback: number): number {
+    const size = this.normalizeFontSize(value, fallback);
+    return size === 10.5 ? 11 : size;
+  }
+
   private formatDisplayDate(isoDate: string): string {
     const [year, month, day] = isoDate.split('-');
     return year && month && day ? `${day}.${month}.${year}` : '';
@@ -1918,7 +2055,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
   private hydrateReportNumber(): void {
     const reportNumber = this.fieldValue('Report No');
-    const prefix = 'JIA / RT-';
+    const prefix = this.reportNumberPrefix || 'JIA / RT-';
     const value = reportNumber.startsWith(prefix) ? reportNumber.slice(prefix.length) : reportNumber;
     this.reportNumberDigits = this.reportNumberDigits || value || '';
     this.updateReportNumber();
@@ -1984,3 +2121,4 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     });
   }
 }
+

@@ -68,6 +68,7 @@ interface GenericRtDraft {
   selectedReportPrefix?: string;
   customReportPrefix?: string;
   reportNumberDigits: string;
+  reportNumberPrefix?: string;
   issueDatePickerValue: string;
   examinationDatePickerValue: string;
   itemReceiptDateTimePickerValue: string;
@@ -100,6 +101,7 @@ interface GenericRtHistoryState {
   reportFields: ReportField[];
   pages: GenericRtPage[];
   reportNumberDigits: string;
+  reportNumberPrefix?: string;
   issueDatePickerValue: string;
   examinationDatePickerValue: string;
   itemReceiptDateTimePickerValue: string;
@@ -167,8 +169,6 @@ const EXPOSURE_TIME_OPTION = 'Exposure Time';
 const KV_MA_OPTION = 'KV & Ma';
 const SOURCE_SIZE_OPTION = 'Source Size';
 const FOCAL_SPOT_OPTION = 'Focal Spot';
-const FOCAL_SPOT_VALUE = '1.5mm x 1.5mm';
-const SOURCE_SIZE_VALUE = '2.4mm x 2.7mm';
 const SFD_OPTION = 'S.F.D';
 const FFD_OPTION = 'F.F.D';
 const ABBREVIATION_DICTIONARY: Record<string, string> = {
@@ -194,7 +194,6 @@ const ABBREVIATION_DICTIONARY: Record<string, string> = {
   NSD: 'No Significant Defect',
   BMD: 'Base Metal Defect',
   P: 'Porosity',
-  Por: 'Porosity',
   PM: 'Process Mark',
   RCC: 'Root Concavity',
   RS: 'Reshoot',
@@ -236,8 +235,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private redoStack: GenericRtHistoryState[] = [];
   private suppressHistoryCapture = false;
 
-  showPageBoundaries = true;
+  showPageBoundaries = false;
   layoutMode: 'edit' | 'preview' = 'edit';
+  pageOrientation: 'portrait' | 'landscape' = 'portrait';
   showMenus = true;
   showCustomerPartSelection = true;
   pageBoundaryStates: PageBoundaryState[] = [];
@@ -259,6 +259,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   tableColumnWidths = [...DEFAULT_TABLE_COLUMN_WIDTHS];
   readonly tableHeaders = ['Sr.\nNo', 'Film Identification', 'Thickness', 'Segment', 'Film\nSize', 'Observations', 'Results'];
   upperDetailsFontSize = 10.5;
+  upperDetailsLineHeight = 1.0;
   lowerTableScale = 0.6;
   lowerDetailsFontSize = 10.5;
   previewZoom = 1;
@@ -283,6 +284,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   sequenceStatusMessage = '';
   showStartingSequence = false;
   filmGenerationMessage = '';
+  autoCountEnabled = false;
 
   evaluatedByOptionsText = '';
   reviewedByOptionsText = '';
@@ -297,7 +299,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   ngOnInit(): void {
     this.loadCustomers();
-    void this.loadSettingsFromServer();
     const reportId = Number(this.route.snapshot.queryParamMap.get('reportId'));
     if (reportId) {
       void this.loadReportFromServer(reportId);
@@ -324,7 +325,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     { label: '\u00A0Source', value: this.dropdownDefault('source') },
     { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
     { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
-    { label: SOURCE_SIZE_OPTION, value: SOURCE_SIZE_VALUE },
+    { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
     { label: '\u00A0Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
     { label: '\u00A0Penetrameter', value: this.settings.defaultValues['Penetrameter'] },
   ];
@@ -343,13 +344,30 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   notes = "";
   footerPartName = '';
   footerPartNameHtml = '';
-  showFooterPartNameRow = false;
+  footerPartNameRowVisible = false;
   footerPageLabel = 'Page';
-  footerFormatNo = '';
-  footerFirstIssue = '';
+  footerFormatNo = 'Format No : JIA / F /010, , REV 01';
+  footerFirstIssue = 'First Issue : 26-11-2025';
+  reportNumberPrefix = 'JIA / ';
+  densityLabel = 'Density :';
+  sensitivityLabel = 'Sensitivity :';
+  remarksLabel = 'Remarks :';
+  abbreviationLabel = 'ABBREVIATION :';
+  endOfReportLabel = '****   End of Report   ****';
+  footerPageLabelText = 'Page';
+  footerFormatNoText = 'Format No';
+  footerFirstIssueText = 'First Issue';
 
   get pageCount(): number {
     return this.pages.length;
+  }
+
+  get showFooterPartNameRow(): boolean {
+    return this.footerPartNameRowVisible || !!this.footerPartName?.trim();
+  }
+
+  get footerPartNameText(): string {
+    return this.extractPlainTextFromHtml(this.footerPartNameHtml || this.footerPartName).trim();
   }
 
   get currentReportSummary(): string {
@@ -375,10 +393,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   get appStatusLabel(): string {
     return this.appStatusMessage || 'Ready';
-  }
-
-  get footerPartNameText(): string {
-    return this.extractPlainTextFromHtml(this.footerPartNameHtml || this.footerPartName).trim();
   }
 
   get abbreviationRows(): Array<Array<{ code: string; description: string }>> {
@@ -555,23 +569,35 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   addRow(pageIndex: number): void {
     this.captureHistory();
+
     const rows = this.pages[pageIndex].rows;
     const previousVisibleIndex = this.previousVisibleRowIndex(rows);
     const previous = previousVisibleIndex >= 0 ? rows[previousVisibleIndex] : undefined;
 
     if (previous) {
-      rows.push(...this.cloneRowGroup(rows, previousVisibleIndex));
+      if (previous.filmGroupId) {
+        const clonedGroup = this.cloneRowGroup(rows, previousVisibleIndex);
+        clonedGroup.forEach((row) => {
+          row.selected = false;
+        });
+        rows.push(...clonedGroup);
+      } else {
+        const nextRow = this.autoCountEnabled ? this.cloneRowWithAutoCount(previous) : this.cloneRow(previous);
+        nextRow.selected = false;
+        rows.push(nextRow);
+      }
     } else {
       rows.push(this.createRow(this.generatedDescription(), ''));
     }
+
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
 
   toggleFooterPartNameRow(): void {
     this.captureHistory();
-    this.showFooterPartNameRow = !this.showFooterPartNameRow;
-    if (!this.showFooterPartNameRow) {
+    this.footerPartNameRowVisible = !this.footerPartNameRowVisible;
+    if (!this.footerPartNameRowVisible) {
       this.footerPartName = '';
       this.footerPartNameHtml = '';
     }
@@ -579,12 +605,22 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
+  setLayoutMode(mode: 'edit' | 'preview'): void {
+    this.layoutMode = mode;
+    this.schedulePageBoundaryUpdate();
+  }
+
+  setPageOrientation(orientation: 'portrait' | 'landscape'): void {
+    this.pageOrientation = orientation;
+    this.schedulePageBoundaryUpdate();
+  }
+
   onFooterPartNameInput(event: Event): void {
     const element = event.target as HTMLDivElement;
     this.footerPartNameHtml = element.innerHTML;
     this.footerPartName = this.extractPlainTextFromHtml(this.footerPartNameHtml);
-    if (!this.showFooterPartNameRow && this.footerPartName.trim()) {
-      this.showFooterPartNameRow = true;
+    if (!this.footerPartNameRowVisible && this.footerPartName.trim()) {
+      this.footerPartNameRowVisible = true;
     }
     this.schedulePageBoundaryUpdate();
   }
@@ -1024,16 +1060,17 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.inspectingOfficer = draft.inspectingOfficer ?? this.inspectingOfficer;
     this.notes = draft.notes ?? this.notes;
     this.footerPartName = typeof (draft as any).footerPartName === 'string' ? (draft as any).footerPartName : this.footerPartName;
+    this.footerPartNameRowVisible =
+      typeof (draft as any).showFooterPartNameRow === 'boolean' ? (draft as any).showFooterPartNameRow : this.footerPartNameRowVisible;
     this.footerPartNameHtml =
       typeof (draft as any).footerPartNameHtml === 'string'
         ? (draft as any).footerPartNameHtml
         : this.textToHtml(this.footerPartName);
-    this.showFooterPartNameRow =
-      typeof (draft as any).showFooterPartNameRow === 'boolean' ? (draft as any).showFooterPartNameRow : this.showFooterPartNameRow;
-    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartNameText;
+    this.footerPartName = draft.footerPartName ?? this.footerPartName;
     this.footerPageLabel = draft.footerPageLabel ?? this.footerPageLabel;
     this.footerFormatNo = draft.footerFormatNo ?? this.footerFormatNo;
     this.footerFirstIssue = draft.footerFirstIssue ?? this.footerFirstIssue;
+    this.reportNumberPrefix = draft.reportNumberPrefix ?? this.reportNumberPrefix;
     this.tableColumnWidths = this.normalizeTableColumnWidths(draft.tableColumnWidths);
     this.lowerTableScale = this.normalizeTableScale(draft.lowerTableScale ?? this.lowerTableScale);
     this.upperDetailsFontSize = this.normalizeFontSize(draft.upperDetailsFontSize, 10.5);
@@ -1228,7 +1265,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.sensitivity = '';
     this.remarks = '- - -';
     this.footerPartName = '';
-    this.showFooterPartNameRow = false;
+    this.footerPartNameHtml = '';
+    this.footerPartNameRowVisible = false;
     this.abbreviationLeft = 'N S D - NO SIGNIFICANT DEFECT';
     this.abbreviationRight = 'A - POROSITY';
     this.evaluatedBy = this.dropdownDefault('evaluatedBy');
@@ -1246,15 +1284,15 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       { label: SFD_OPTION, value: '' }
     ];
     this.reportFields = [
-      { label: '\u00A0Report No', value: '' },
-      { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
-      { label: '\u00A0Test Location', value: this.dropdownDefault('testLocation') },
-      { label: '\u00A0Source', value: this.dropdownDefault('source') },
-      { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
+      { label: 'Report No', value: '' },
+      { label: 'Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+      { label: 'Test Location', value: this.dropdownDefault('testLocation') },
+      { label: 'ource', value: this.dropdownDefault('source') },
+      { label: 'Source Strength', value: this.settings.defaultValues['Source Strength'] },
       { label: EXPOSURE_TIME_OPTION, value: 'Minutes' },
-      { label: SOURCE_SIZE_OPTION, value: SOURCE_SIZE_VALUE },
-      { label: '\u00A0Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
-      { label: '\u00A0Penetrameter', value: this.settings.defaultValues['Penetrameter'] }
+      { label: SOURCE_SIZE_OPTION, value: '2.4mm x 2.7mm' },
+      { label: 'Film Class & Brand', value: this.settings.defaultValues['Film Class & Brand'] },
+      { label: 'Penetrameter', value: this.settings.defaultValues['Penetrameter'] }
     ];
     this.otherFieldLabels.clear();
     this.normalizeSelectableReportFields();
@@ -1300,10 +1338,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       notes: this.notes,
       footerPartName: this.footerPartName,
       footerPartNameHtml: this.footerPartNameHtml,
-      showFooterPartNameRow: this.showFooterPartNameRow,
+      showFooterPartNameRow: this.footerPartNameRowVisible,
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
+      reportNumberPrefix: this.reportNumberPrefix,
       tableColumnWidths: [...this.tableColumnWidths]
     };
   }
@@ -1334,8 +1373,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.notes = snapshot.notes;
     this.footerPartName = snapshot.footerPartName ?? '';
     this.footerPartNameHtml = snapshot.footerPartNameHtml ?? this.textToHtml(this.footerPartName);
-    this.showFooterPartNameRow = snapshot.showFooterPartNameRow ?? false;
-    this.showFooterPartNameRow = this.showFooterPartNameRow || !!this.footerPartNameText;
+    this.footerPartNameRowVisible = snapshot.showFooterPartNameRow ?? false;
     this.footerPageLabel = snapshot.footerPageLabel;
     this.footerFormatNo = snapshot.footerFormatNo;
     this.footerFirstIssue = snapshot.footerFirstIssue;
@@ -1389,7 +1427,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   onSourceSizeModeChange(field: ReportField, value: string): void {
     field.label = value;
-    field.value = value === SOURCE_SIZE_OPTION ? SOURCE_SIZE_VALUE : FOCAL_SPOT_VALUE;
+    field.value = value === SOURCE_SIZE_OPTION ? '2.4mm x 2.7mm' : '';
     this.schedulePageBoundaryUpdate();
   }
 
@@ -1410,34 +1448,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       }
 
       if (field.label === 'Source Size / Focal Spot') {
-        field.label = field.value?.trim() && field.value.trim() !== SOURCE_SIZE_VALUE ? FOCAL_SPOT_OPTION : SOURCE_SIZE_OPTION;
+        field.label = field.value?.trim() && field.value.trim() !== '2.4mm x 2.7mm' ? FOCAL_SPOT_OPTION : SOURCE_SIZE_OPTION;
       }
     });
-
-    const sourceField = this.reportFields.find((field) => this.normalizeLabel(field.label) === 'Source');
-    if (sourceField) {
-      this.applySourceDependentField(sourceField.value || '');
-    }
-  }
-
-  private applySourceDependentField(sourceValue: string): void {
-    const normalized = sourceValue.trim().toUpperCase();
-    const sourceField = this.reportFields.find((field) =>
-      [SOURCE_SIZE_OPTION, FOCAL_SPOT_OPTION, 'Source Size / Focal Spot'].includes(field.label)
-    );
-    if (!sourceField) return;
-
-    if (normalized === 'X-RAY') {
-      sourceField.label = FOCAL_SPOT_OPTION;
-      sourceField.value = FOCAL_SPOT_VALUE;
-      return;
-    }
-
-    if (normalized === 'CO-60' || normalized === 'IR-192') {
-      sourceField.label = SOURCE_SIZE_OPTION;
-      sourceField.value = SOURCE_SIZE_VALUE;
-      return;
-    }
   }
 
   getFieldControlType(label: string): string {
@@ -1463,9 +1476,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     this.otherFieldLabels.delete(field.label);
     field.value = value;
-    if (key === 'source') {
-      this.applySourceDependentField(value);
-    }
     this.clearRedoStack();
   }
 
@@ -1479,14 +1489,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   onReportDigitsChange(value: string): void {
     this.captureHistory();
-    const prefix = 'JIA / ';
+    const prefix = this.reportNumberPrefix || 'JIA / ';
     this.reportNumberDigits = value.startsWith(prefix) ? value.slice(prefix.length) : value;
     this.updateReportNumber();
     this.clearRedoStack();
   }
 
   updateReportNumber(): void {
-    const prefix = 'JIA / ';
+    const prefix = this.reportNumberPrefix || 'JIA / ';
     let value = this.reportNumberDigits || '';
     if (value.startsWith(prefix)) {
       value = value.slice(prefix.length);
@@ -1540,6 +1550,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   updateLowerTableScale(value: number | string): void {
     this.lowerTableScale = this.normalizeTableScale(Number(value));
+    this.schedulePageBoundaryUpdate();
+  }
+
+  updateUpperDetailsLineHeight(value: number | string): void {
+    const next = Number(value);
+    if (!Number.isFinite(next)) return;
+    this.upperDetailsLineHeight = Math.min(1.4, Math.max(0.75, next));
     this.schedulePageBoundaryUpdate();
   }
 
@@ -1894,6 +1911,16 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return value.slice(firstDash + 1, lastDash);
   }
 
+  private incrementTrailingNumber(value: string): string {
+    const text = String(value || '');
+    const match = /(.*?)(\d+)(\D*)$/.exec(text);
+    if (!match) return text;
+
+    const [, prefix, digits, suffix] = match;
+    const nextDigits = String(Number(digits) + 1).padStart(digits.length, '0');
+    return `${prefix}${nextDigits}${suffix}`;
+  }
+
   private async advanceSequenceAfterSave(baseMessage: string): Promise<void> {
     const partNumber = this.selectedPartNumber || this.getSelectedPart()?.part_number || '';
     const dateCode = this.selectedDateCode || '';
@@ -1941,7 +1968,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       setting.defaultValue = setting.options[0] ?? '';
     }
     this.persistSettings();
-    this.setAppStatus('Settings synced to database', 'saved');
+    this.setAppStatus('Settings Saved Successfully', 'saved');
   }
 
   moveDropdownOption(key: string, index: number, direction: -1 | 1): void {
@@ -1964,7 +1991,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   persistSettings(): void {
     localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
-    void this.saveSettingsToServer();
     this.applyDefaultValuesToBlankFields();
   }
 
@@ -2064,7 +2090,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   schedulePageBoundaryUpdate(): void {
-    if (this.layoutMode !== 'edit' || !this.showPageBoundaries || this.boundaryFrameId) return;
+    if (!this.showPageBoundaries || this.boundaryFrameId) return;
 
     this.boundaryFrameId = requestAnimationFrame(() => {
       this.boundaryFrameId = 0;
@@ -2129,6 +2155,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       footerPageLabel: this.footerPageLabel,
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
+      reportNumberPrefix: this.reportNumberPrefix,
       tableColumnWidths: this.tableColumnWidths
     };
   }
@@ -2173,7 +2200,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private createRow(description: string, segment: string): GenericRtRow {
     return {
       description,
-      thickness: '',
+      thickness: 'Multiple',
       segment,
       filmSize: '4" x 12"',
       observations: 'N S D',
@@ -2230,6 +2257,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     const rows = sampleRows.map((sample, index) => {
       const row = this.createRow(sample.filmIdentification, sample.segment);
+      row.thickness = index < 10 ? '40mm' : '38mm';
       row.filmSize = index % 2 === 0 ? '6 x 16"' : '8 x 10"';
       row.observations = [
         'IQI: ASTM 1B',
@@ -2247,7 +2275,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.customerFields = [
       { label: '\u00A0Customer Name & \u00A0Address *', value: 'Madras Engineering Industries (P) Limited' },
       { label: '\u00A0Material', value: 'Carbon Steel' },
-      { label: '\u00A0Size & Thickness *', value: '' },
+      { label: '\u00A0Size & Thickness *', value: '40mm' },
       { label: '\u00A0Area Tested *', value: this.dropdownDefault('areaTested') },
       { label: '\u00A0Lead Screens', value: this.dropdownDefault('leadScreens') },
       { label: '\u00A0Exposure Technique', value: this.dropdownDefault('exposureTechniques') },
@@ -2290,6 +2318,12 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       cloned.filmGroupId = filmGroupId;
     }
     delete cloned.selected;
+    return cloned;
+  }
+
+  private cloneRowWithAutoCount(row: GenericRtRow): GenericRtRow {
+    const cloned = this.cloneRow(row);
+    cloned.description = this.incrementTrailingNumber(cloned.description);
     return cloned;
   }
 
@@ -2420,7 +2454,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         },
         testPerformedBy: {
           label: 'Test Performed By',
-          options: ['M Samson (Radiographer)', 'Ganeshan (Radiographer)', 'Rajendran (Radiographer)'],
+          options: ['M Samson (Radiographer)', 'Ganeshan (Radiographer)', 'Rajendran (Radiographer)', ''],
           defaultValue: 'M Samson (Radiographer)'
         },
         leadScreens: {
@@ -2455,13 +2489,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         },
         evaluatedBy: {
           label: 'Evaluated By',
-          options: ['M Samson (Radiographer)', 'Ganeshan (Radiographer)', 'Rajendran (Radiographer)'],
-          defaultValue: 'M Samson (Radiographer)'
+          options: ['M Samson (Radiographer)', 'Ganeshan (Radiographer)', 'Rajendran (Radiographer)', ' '],
+          defaultValue: ' '
         },
         reviewedBy: {
           label: 'Reviewed By',
-          options: ['Authorized Signatory', 'M Samson', 'Ganeshan', 'Rajendran'],
-          defaultValue: 'Authorized Signatory'
+          options: [ 'M Samson', 'Ganeshan', 'Rajendran',' '],
+          defaultValue: ' '
         }
       },
       defaultValues: {
@@ -2476,66 +2510,25 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private loadSettings(): GenericRtSettings {
-    return this.defaultSettings();
-  }
-
-  setLayoutMode(mode: 'edit' | 'preview'): void {
-    this.layoutMode = mode;
-    this.schedulePageBoundaryUpdate();
-  }
-
-  private async loadSettingsFromServer(): Promise<void> {
     const defaults = this.defaultSettings();
-    try {
-      const response = await firstValueFrom(this.reportService.getReportSettings());
-      const parsed = response?.settings && typeof response.settings === 'object' ? (response.settings as Partial<GenericRtSettings> & {
-        reportPrefixes?: string[];
-        exposureTechniques?: string[];
-        testPerformedBy?: string[];
-      }) : null;
+    const saved = localStorage.getItem(this.settingsStorageKey);
+    if (!saved) return defaults;
 
-      if (parsed) {
-        const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
-        if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
-        if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
-        if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
-        this.settings = {
-          dropdowns,
-          defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
-        };
-      } else {
-        this.settings = defaults;
-      }
-    } catch (error) {
-      const saved = localStorage.getItem(this.settingsStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as Partial<GenericRtSettings> & {
-          reportPrefixes?: string[];
-          exposureTechniques?: string[];
-          testPerformedBy?: string[];
-        };
-        const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
-        if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
-        if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
-        if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
-        this.settings = {
-          dropdowns,
-          defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
-        };
-      } else {
-        this.settings = defaults;
-      }
-      console.error('Failed to load report settings from server:', error);
-    }
-    this.applyDefaultValuesToBlankFields();
-  }
+    const parsed = JSON.parse(saved) as Partial<GenericRtSettings> & {
+      reportPrefixes?: string[];
+      exposureTechniques?: string[];
+      testPerformedBy?: string[];
+    };
 
-  private async saveSettingsToServer(): Promise<void> {
-    try {
-      await firstValueFrom(this.reportService.updateReportSettings(this.settings));
-    } catch (error) {
-      console.error('Failed to save report settings to server:', error);
-    }
+    const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
+    if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
+    if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
+    if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
+
+    return {
+      dropdowns,
+      defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
+    };
   }
 
   private dropdownDefault(key: DropdownKey): string {
@@ -2546,10 +2539,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const normalizedLabel = this.normalizeLabel(label);
     const field = [...this.customerFields, ...this.reportFields].find((reportField) => this.normalizeLabel(reportField.label) === normalizedLabel);
     if (field) field.value = value;
-  }
-
-  private normalizeLabel(label: string): string {
-    return label.replace(/\u00A0/g, ' ').trim();
   }
 
   private extractPlainTextFromHtml(value: string): string {
@@ -2565,6 +2554,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  private normalizeLabel(label: string): string {
+    return label.replace(/\u00A0/g, ' ').trim();
   }
 
   private todayIso(): string {
@@ -2621,7 +2614,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   private hydrateReportNumber(): void {
     const reportNumber = this.fieldValue('Report No');
-    const prefix = 'JIA / RT-';
+    const prefix = this.reportNumberPrefix || 'JIA / ';
     const value = reportNumber.startsWith(prefix) ? reportNumber.slice(prefix.length) : reportNumber;
     this.reportNumberDigits = this.reportNumberDigits || value || '';
     this.updateReportNumber();

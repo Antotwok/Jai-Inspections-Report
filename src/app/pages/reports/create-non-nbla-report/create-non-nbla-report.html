@@ -86,6 +86,10 @@
         </div>
         <div class="action-grid">
           <button type="button" class="primary-action" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
+          <label class="boundary-toggle">
+            <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
+            Auto count
+          </label>
           <button type="button" (click)="openSaveDialog()">Save</button>
           <button type="button" (click)="openLoadDialog()">Load</button>
           <button type="button" (click)="openUpdateDialog()">Update</button>
@@ -107,6 +111,10 @@
             <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
           </label>
           <label class="font-size-control">
+            Upper line spacing
+            <input type="number" min="0.75" max="1.4" step="0.05" [(ngModel)]="upperDetailsLineHeight" name="upperDetailsLineHeight" (ngModelChange)="updateUpperDetailsLineHeight($event)" />
+          </label>
+          <label class="font-size-control">
             Lower table
             <input type="number" min="0.1" max="1.4" step="0.05" [(ngModel)]="lowerTableScale" name="lowerTableScale" (ngModelChange)="updateLowerTableScale($event)" />
           </label>
@@ -118,15 +126,14 @@
               <button type="button" [class.active]="layoutMode === 'edit'" (click)="setLayoutMode('edit')">Edit</button>
               <button type="button" [class.active]="layoutMode === 'preview'" (click)="setLayoutMode('preview')">Preview</button>
             </div>
-            <label class="boundary-toggle">
-              <input
-                type="checkbox"
-                [(ngModel)]="showPageBoundaries"
-                name="showPageBoundaries"
-                (ngModelChange)="schedulePageBoundaryUpdate()"
-              />
-              Layout Guide
-            </label>
+          <div class="mode-switch" role="group" aria-label="Page orientation">
+            <button type="button" [class.active]="pageOrientation === 'portrait'" (click)="setPageOrientation('portrait')">Portrait</button>
+            <button type="button" [class.active]="pageOrientation === 'landscape'" (click)="setPageOrientation('landscape')">Landscape</button>
+          </div>
+          <label class="boundary-toggle">
+            <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
+            Auto count
+          </label>
         </div>
         <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
         <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
@@ -138,12 +145,13 @@
     </aside>
 
     <section class="preview-panel" aria-label="Live report preview">
-      <section class="report-stack" [style.--preview-zoom]="previewZoom" aria-label="Non-NABL RT Report pages">
+      <section class="report-stack" [class.page-landscape]="pageOrientation === 'landscape'" [class.page-portrait]="pageOrientation === 'portrait'" [style.--preview-zoom]="previewZoom" aria-label="Non-NABL RT Report pages">
         <article
           #reportPage
           class="rt-page"
           *ngFor="let page of pages; let pageIndex = index; trackBy: trackByIndex"
           [style.--upper-details-font-size]="upperDetailsFontSize + 'px'"
+          [style.--upper-details-line-height]="upperDetailsLineHeight"
           [style.--lower-table-scale]="lowerTableScale"
           [style.--lower-details-font-size]="lowerDetailsFontSize + 'px'"
         >
@@ -151,6 +159,13 @@
             <span>Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
             <button type="button" (click)="addPage()">Add Page</button>
             <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex)">Remove Page</button>
+          </div>
+          <div class="page-side-actions">
+            <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
+              Duplicate Selected
+            </button>
+            <button type="button" (click)="addRow(pageIndex)">Add Row</button>
+            <button type="button" *ngIf="!showFooterPartNameRow" (click)="toggleFooterPartNameRow()">Add Part Name</button>
           </div>
           <div class="page-badge" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">Page {{ pageIndex + 1 }}</div>
 
@@ -163,20 +178,28 @@
             <section class="details-grid">
               <div class="detail-row" *ngFor="let pair of detailPairs; let i = index; trackBy: trackByIndex">
                 <label>
-                  <ng-container *ngIf="pair.customer && isSfdSelectorLabel(pair.customer.label); else customerLabelText">
-                    <select
-                      class="label-select"
-                      [ngModel]="pair.customer.label"
-                      [name]="'customerLabelSelect' + i"
-                      (ngModelChange)="onSfdModeChange(pair.customer, $event)"
-                    >
-                      <option value="S.F.D">S.F.D</option>
-                      <option value="F.F.D">F.F.D</option>
-                    </select>
+                  <ng-container *ngIf="pair.customer?.label === 'Customer Name & Address *'; else customerLabelChoice">
+                    <span class="wrapped-label">Customer Name<br />& Address *</span>
                   </ng-container>
+                  <ng-template #customerLabelChoice>
+                    <ng-container *ngIf="pair.customer && isSfdSelectorLabel(pair.customer.label); else customerLabelText">
+                      <input
+                        class="label-select"
+                        type="text"
+                        [ngModel]="pair.customer.label"
+                        [name]="'customerLabelSelect' + i"
+                        (ngModelChange)="onSfdModeChange(pair.customer, $event)"
+                      />
+                    </ng-container>
+                  </ng-template>
                   <ng-template #customerLabelText>
-                    <span>{{ pair.customer?.label }}</span>
-                    <small *ngIf="pair.customer?.label?.trim() === 'Size & Thickness *'" class="unit-hint">in mm</small>
+                    <input
+                      *ngIf="pair.customer"
+                      type="text"
+                      [style.font-size]="fieldFontSize(pair.customer, upperDetailsFontSize)"
+                      [(ngModel)]="pair.customer.label"
+                      [name]="'customerLabel' + i"
+                    />
                   </ng-template>
                 </label>
                 <ng-container *ngIf="pair.customer">
@@ -215,6 +238,13 @@
                 <span class="empty-detail" *ngIf="!pair.customer"></span>
 
                 <label>
+                  <input
+                    *ngIf="pair.report && !isSourceSizeSelectorLabel(pair.report.label) && !isExposureSelectorLabel(pair.report.label)"
+                    type="text"
+                    [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                    [(ngModel)]="pair.report.label"
+                    [name]="'reportLabelBase' + i"
+                  />
                   <ng-container *ngIf="pair.report && isExposureSelectorLabel(pair.report.label); else sourceSizeOrPlainLabel">
                     <select
                       class="label-select"
@@ -252,7 +282,7 @@
                       </ng-container>
                     </ng-template>
                   </ng-template>
-                  <ng-template #plainReportLabel>{{ pair.report?.label }}</ng-template>
+                  <ng-template #plainReportLabel></ng-template>
                 </label>
                 <ng-container *ngIf="pair.report">
                   <div
@@ -260,13 +290,19 @@
                     *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'; else reportDateOrText"
                     [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
                   >
-                    <span class="report-prefix">JIA /</span>
                     <input
-  type="text"
-  [ngModel]="reportNumberDigits"
-  name="reportNumberDigits"
-  (ngModelChange)="onReportDigitsChange($event)"
-/>
+                      class="report-prefix"
+                      type="text"
+                      [ngModel]="reportNumberPrefix"
+                      name="reportNumberPrefix"
+                      (ngModelChange)="reportNumberPrefix = $event; updateReportNumber()"
+                    />
+                    <input
+                      type="text"
+                      [ngModel]="reportNumberDigits"
+                      name="reportNumberDigits"
+                      (ngModelChange)="onReportDigitsChange($event)"
+                    />
                   </div>
                   <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
 
@@ -320,24 +356,16 @@
                 <span class="empty-detail" *ngIf="!pair.report"></span>
               </div>
               <div class="detail-row density-sensitivity-row">
-                <label>Density</label>
-                <textarea [(ngModel)]="density" name="density" rows="1"></textarea>
-                <label>Sensitivity</label>
-                <textarea [(ngModel)]="sensitivity" name="sensitivity" rows="1"></textarea>
+                <label><input type="text" [(ngModel)]="densityLabel" name="densityLabel" /></label>
+                <input class="inline-text-input" type="text" [(ngModel)]="density" name="density" />
+                <label><input type="text" [(ngModel)]="sensitivityLabel" name="sensitivityLabel" /></label>
+                <input class="inline-text-input" type="text" [(ngModel)]="sensitivity" name="sensitivity" />
               </div>
               <div class="remarks-detail-row">
-                <label>Remarks</label>
-                <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
+                <label><input type="text" [(ngModel)]="remarksLabel" name="remarksLabel" /></label>
+                <input class="inline-text-input" type="text" [(ngModel)]="remarks" name="remarks" />
               </div>
               <div class="part-name-detail-row" [class.part-name-shown]="showFooterPartNameRow || footerPartNameText">
-                <button
-                  type="button"
-                  class="add-part-name-btn"
-                  *ngIf="!showFooterPartNameRow"
-                  (click)="toggleFooterPartNameRow()"
-                >
-                  Add Part Name
-                </button>
                 <div class="part-name-line" *ngIf="showFooterPartNameRow || footerPartNameText">
                   <div class="part-name-toolbar">
                     <button type="button" class="align-part-name-btn" (click)="alignFooterPartName('left')">Left</button>
@@ -377,21 +405,21 @@
             </section>
           </ng-template>
 
-          <section class="table-toolbar">
-            <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
-              Duplicate Selected
-            </button>
-            <button type="button" (click)="addRow(pageIndex)">Add Row</button>
-          </section>
-
-          <table class="rt-table">
-            <colgroup>
+          <!-- Main content area that should grow and contain the table -->
+          <div class="report-body-content">
+            <table class="rt-table">
+              <colgroup>
               <col *ngFor="let width of tableColumnWidths; let columnIndex = index; trackBy: trackByIndex" [style.width]="tableColumnWidth(columnIndex)" />
             </colgroup>
             <thead>
               <tr>
                 <th *ngFor="let header of tableHeaders; let columnIndex = index; trackBy: trackByIndex">
-                  <span class="table-header-label">{{ tableHeaderLabel(header) }}</span>
+                  <textarea
+                    class="table-header-label"
+                    rows="2"
+                    [(ngModel)]="tableHeaders[columnIndex]"
+                    [name]="'tableHeader' + columnIndex"
+                  ></textarea>
                   <button
                     type="button"
                     class="column-resize-handle"
@@ -478,56 +506,55 @@
                 </td>
               </tr>
             </tbody>
-          </table>
-
+            </table>
+          </div>
           <div class="table-extension" aria-hidden="true"></div>
-
-          <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
-            <div class="abbreviation-section">
-              <strong>ABBREVIATION :</strong>
-              <div class="abbreviation-grid">
-                <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
-                  <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
-                    <span>{{ item.code }}</span>
-                    <span>-</span>
-                    <span>{{ item.description }}</span>
+          <div class="footer-wrapper">
+            <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
+              <div class="abbreviation-section">
+                <strong><input type="text" [(ngModel)]="abbreviationLabel" name="abbreviationLabel" /></strong>
+                <div class="abbreviation-grid">
+                  <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
+                    <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
+                      <span>{{ item.code }}</span>
+                      <span>-</span>
+                      <span>{{ item.description }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <section class="signature-grid">
-              <div>
-                <strong>Evaluated By</strong>
-                <span class="signature-person">
-                  <select [(ngModel)]="evaluatedBy" name="evaluatedBy">
-                    <option *ngFor="let option of settings.dropdowns['evaluatedBy'].options" [value]="option">{{ option }}</option>
-                  </select>
-                </span>
-              </div>
-              <div>
-                <strong>Reviewed By</strong>
-                <span class="signature-person">
-                  <select [(ngModel)]="reviewedBy" name="reviewedBy">
-                    <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
-                  </select>
-                </span>
-              </div>
-              <div>
-                <strong>for Client</strong>
-                <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
-              </div>
+              <section class="signature-grid">
+                <div>
+                  <strong>Evaluated By</strong>
+                  <span class="signature-person">
+                    <select [(ngModel)]="evaluatedBy" name="evaluatedBy">
+                      <option *ngFor="let option of settings.dropdowns['evaluatedBy'].options" [value]="option">{{ option }}</option>
+                    </select>
+                  </span>
+                </div>
+                <div>
+                  <strong>Reviewed By</strong>
+                  <span class="signature-person">
+                    <select [(ngModel)]="reviewedBy" name="reviewedBy">
+                      <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
+                    </select>
+                  </span>
+                </div>
+                <div>
+                  <strong>for Client</strong>
+                  <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
+                </div>
+              </section>
+
+              <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
+              <div class="end-report"><input type="text" [(ngModel)]="endOfReportLabel" name="endOfReportLabel" /></div>
             </section>
 
-            <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
-            <div class="end-report">**** &nbsp; End of Report &nbsp; ****</div>
-          </section>
-
-          <footer class="page-footer">
-            <span><input [(ngModel)]="footerPageLabel" name="footerPageLabel" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
-            <span><input [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
-            <span><input [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
-          </footer>
+            <footer class="page-footer">
+              <span><input type="text" [(ngModel)]="footerPageLabelText" name="footerPageLabelText" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
+            </footer>
+          </div>
 
           <div class="page-boundary-overlay" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">
             <div

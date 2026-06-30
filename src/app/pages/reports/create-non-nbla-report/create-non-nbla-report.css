@@ -536,10 +536,11 @@ button:disabled {
 /* ── A4 page ── */
 .rt-page {
   position: relative;
-  display: flex;
+  display: flex; /* This was missing */
   flex-direction: column;
   width: min(210mm, 100%);
-  min-height: 297mm;
+  height: 322mm; /* Fixed height for the page */
+  /* Removed min-height to prevent page from growing dynamically */
   margin: 0 auto 28px;
   box-sizing: border-box;
   background: #ffffff;
@@ -547,7 +548,13 @@ button:disabled {
   border-radius: 2px;
   box-shadow: var(--shadow-lg);
   font: 10.5px/1.18 Arial, sans-serif;
-  padding: 10mm 12.5mm;
+  padding: 10mm 12.5mm 42mm; /* Adjusted bottom padding to make space for fixed footer */
+}
+
+.report-stack.page-landscape .rt-page {
+  width: min(297mm, 100%);
+  height: 215mm;
+  min-height: 215mm;
 }
 
 .rt-page::after {
@@ -595,6 +602,17 @@ button:disabled {
   font: 700 10px/1.2 var(--font);
 }
 
+.page-side-actions {
+  position: absolute;
+  top: 50%;
+  right: -46mm;
+  transform: translateY(-50%);
+  display: grid;
+  gap: 6px;
+  width: 40mm;
+  z-index: 10;
+}
+
 .page-edit-tools span {
   padding: 4px 6px;
   background: var(--bg-soft);
@@ -605,7 +623,8 @@ button:disabled {
   font-size: 10px;
 }
 
-.page-edit-tools button {
+.page-edit-tools button,
+.page-side-actions button {
   min-height: 28px;
   border-radius: var(--radius-sm);
   font-size: 10px;
@@ -720,7 +739,7 @@ button:disabled {
 .report-title {
   margin: 0;
   background: #f5f8f6;
-  border: 2px solid #262626;
+  border: 1px solid #333;
   border-bottom: 0;
   font-size: calc(var(--upper-details-font-size, 10.5px) + 4.5px);
   font-weight: 700;
@@ -751,10 +770,33 @@ button:disabled {
 /* ── Details grid ── */
 .details-grid {
   display: grid;
-  border: 2px solid #262626;
+  border: 1px solid #333;
+  /* Keep bottom border off so the junction with the lower table is controlled by the table itself */
   border-bottom: 0;
   font-size: var(--upper-details-font-size, 10.5px);
+  line-height: var(--upper-details-line-height, 1);
+  /* Ensure left/right borders visually continue up to the lower table */
+  position: relative;
 }
+
+.report-body-content {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #333;
+  border-right: 1px solid #333;
+  background: #fff;
+}
+
+.table-extension {
+  flex: 1 1 auto;
+  min-height: 18mm;
+  height: auto;
+  border-left: 1px solid #333;
+  border-right: 1px solid #333;
+  border-bottom: 1px solid #333;
+  background: transparent;
+}
+
 
 .detail-row {
   display: grid;
@@ -769,6 +811,7 @@ button:disabled {
   padding: 1mm 1.6mm;
   letter-spacing: .01em;
   background: #fafbfa;
+  line-height: var(--upper-details-line-height, 1);
 }
 
 .detail-row label:nth-of-type(2) {
@@ -797,6 +840,7 @@ button:disabled {
   padding: 1mm 1.6mm;
   letter-spacing: .01em;
   background: #fafbfa;
+  line-height: var(--upper-details-line-height, 1);
 }
 
 .remarks-detail-row textarea {
@@ -816,6 +860,13 @@ select {
   font: inherit;
   padding: .7mm 1.2mm;
   resize: none;
+}
+
+.inline-text-input {
+  min-height: 5.5mm;
+  border: 1px solid #999;
+  background: #fff;
+  border-radius: 1px;
 }
 
 textarea {
@@ -896,41 +947,12 @@ select:focus {
   white-space: pre-line;
 }
 
-/* ── Table toolbar ── */
-.table-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  border-left: 1px solid #333;
-  border-right: 1px solid #333;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-soft);
-  padding: 1mm 2mm;
-}
-
-.table-toolbar button {
-  min-height: 22px;
-  font-size: 9px;
-  padding: 3px 9px;
-  border-radius: var(--radius-sm);
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #000000;
-  font-weight: 700;
-}
-
-.table-toolbar button:hover {
-  background: var(--brand-mid);
-  border-color: var(--brand-mid);
-  color: #000000;
-}
-
 /* ── RT table ── */
 .rt-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #333; /* Re-added: The main table should always have its own bottom border */
   font-size: var(--lower-details-font-size, 10.5px);
 }
 
@@ -1066,29 +1088,35 @@ select:focus {
 /* ── Page fill spacer ── */
 .rt-page .page-fill {
   flex: 1 1 auto;
-  border-left: 1px solid #333;
-  border-right: 1px solid #333;
   border-bottom: 1px solid #333;
   min-height: 8mm;
 }
 
-.table-extension {
+.table-extension { /* Page fill spacer under RT table; should not affect row placement */
   flex: 1 1 auto;
-  min-height: 8mm;
-  border-left: 1px solid #333;
-  border-right: 1px solid #333;
-  border-bottom: 1px solid #333;
-  background: #ffffff;
+  min-height: 0;
+  height: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+
+/* Footer wrapper to fix at the bottom */
+.footer-wrapper {
+  position: absolute;
+  bottom: 4mm; /* Aligns with the page number in generic report */
+  left: 12.5mm; /* Aligns with page content padding */
+  right: 12.5mm; /* Aligns with page content padding */
+  display: flex; /* To arrange last-page-footer and page-footer */
+  flex-direction: column;
+  width: calc(100% - 25mm); /* Account for left and right padding */
 }
 
 /* ── Last page footer ── */
 .last-page-footer {
-  margin-top: auto;
   display: grid;
   border: 1px solid #333;
   font-size: var(--lower-details-font-size, 10.5px);
-  break-inside: avoid;
-  page-break-inside: avoid;
 }
 
 .remarks-line {
@@ -1322,11 +1350,10 @@ select:focus {
 
 /* ── Page footer ── */
 .page-footer {
-  display: grid;
+  display: grid; /* Keep grid for internal layout */
   grid-template-columns: 1fr 1.4fr 1fr;
   align-items: end;
   gap: 4mm;
-  margin-top: 3mm;
   font-size: 9px;
   font-weight: 700;
   color: var(--muted);
@@ -1568,7 +1595,7 @@ select:focus {
 /* ── Print (unchanged behavior) ── */
 @media print {
   @page {
-    size: A4;
+    size: 210mm 322mm;
     margin: 0;
   }
 
@@ -1584,6 +1611,7 @@ select:focus {
   .dialog-backdrop,
   .modal-backdrop,
   .page-edit-tools,
+  .page-side-actions,
   .page-boundary-overlay,
   .page-overflow-warning,
   .table-toolbar,
@@ -1613,8 +1641,8 @@ select:focus {
     display: flex;
     flex-direction: column;
     width: 210mm;
-    min-height: 297mm !important;
-    height: 297mm !important;
+    height: 322mm !important;
+    min-height: 322mm !important;
     border: 0;
     box-shadow: inset 1px 0 0 #333, inset -1px 0 0 #333;
     margin: 0;
@@ -1626,16 +1654,33 @@ select:focus {
     break-after: page;
   }
 
+  .footer-wrapper {
+    position: absolute;
+    bottom: 4mm;
+    left: 12.5mm;
+    right: 12.5mm;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 25mm);
+  }
+
   .jia-letterhead,
   .report-title,
   .details-grid,
   .continuation-summary,
   .rt-table thead,
   .abbreviation-section,
-  .last-page-footer,
-  .page-footer {
+  .last-page-footer, .page-footer { /* Corrected CSS syntax */
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  .report-title,
+  .details-grid,
+  .report-body-content,
+  .table-extension,
+  .last-page-footer {
+    border-color: #333;
   }
 
   .rt-table tr,
@@ -1657,14 +1702,8 @@ select:focus {
     display: block !important;
     flex: 1 1 auto;
     min-height: 0;
-    border-left: 1px solid #333;
-    border-right: 1px solid #333;
-    border-bottom: 1px solid #333;
+    border-bottom: none; /* Explicitly removed in print styles too */
     background: #fff;
-  }
-
-  .last-page-footer {
-    margin-top: auto;
   }
 
   .add-part-name-btn,

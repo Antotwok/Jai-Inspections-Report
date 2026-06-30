@@ -494,7 +494,9 @@ button:disabled {
   display: flex;
   flex-direction: column;
   width: 210mm;
-  min-height: 297mm;
+  height: 302mm;
+  min-height: 302mm;
+  flex: 0 0 auto;
   margin: 0 auto;
   box-sizing: border-box;
   background: #ffffff;
@@ -502,7 +504,7 @@ button:disabled {
   border-radius: 2px;
   box-shadow: var(--shadow-lg);
   font: 10.5px/1.18 Arial, sans-serif;
-  padding: 10mm 12.5mm;
+  padding: 10mm 12.5mm 42mm;
 }
 
 .rt-page::after {
@@ -512,6 +514,15 @@ button:disabled {
   border: 1px solid rgba(12, 94, 74, 0.10);
   border-radius: 2px;
   pointer-events: none;
+}
+
+.details-grid {
+  line-height: var(--upper-details-line-height, 1);
+}
+
+.detail-row label,
+.remarks-detail-row label {
+  line-height: var(--upper-details-line-height, 1);
 }
 
 /* Row selection float */
@@ -545,7 +556,7 @@ button:disabled {
   right: -46mm;
   display: grid;
   gap: 6px;
-  width: 40mm;
+  width: 52mm;
   color: var(--muted);
   font: 700 10px/1.2 var(--font);
 }
@@ -565,6 +576,30 @@ button:disabled {
   border-radius: var(--radius-sm);
   font-size: 10px;
   padding: 4px 8px;
+}
+
+.page-row-tools {
+  position: absolute;
+  top: 50%;
+  right: -54mm;
+  z-index: 11;
+  display: grid;
+  gap: 8px;
+  width: 44mm;
+  padding: 8px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(12, 94, 74, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(4px);
+}
+
+.page-row-tools button {
+  min-height: 30px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  padding: 5px 10px;
 }
 
 .page-badge {
@@ -937,14 +972,18 @@ select:focus {
   border-left: 1px solid #333;
   border-right: 1px solid #333;
   border-bottom: 1px solid #333;
-  min-height: 8mm;
+  min-height: 0;
 }
 
 /* ── Last page footer ── */
 .last-page-footer {
-  margin-top: auto;
+  position: absolute;
+  left: 12.5mm;
+  right: 12.5mm;
+  bottom: 18mm;
   border: 1px solid #333;
   font-size: var(--lower-details-font-size, 10.5px);
+  padding-bottom: 0.2mm;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -956,7 +995,7 @@ select:focus {
   border-bottom: 1px solid #333333;
   font-weight: 700;
   gap: 1mm;
-  padding: .8mm 2mm;
+  padding: .4mm 2mm;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -975,7 +1014,7 @@ select:focus {
   column-gap: 8mm;
   align-items: start;
   border-bottom: 1px solid #333333;
-  padding: .8mm 1.5mm;
+  padding: .3mm 1.5mm;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -988,14 +1027,14 @@ select:focus {
 
 .abbreviation-grid {
   display: grid;
-  gap: 1mm;
+  gap: 0.5mm;
   width: 100%;
 }
 
 .abbreviation-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1mm 2mm;
+  gap: 0.5mm 1.5mm;
   align-items: start;
 }
 
@@ -1005,7 +1044,7 @@ select:focus {
   gap: .35mm;
   min-width: 0;
   font-weight: 700;
-  min-height: 4mm;
+  min-height: 3mm;
   overflow-wrap: normal;
   white-space: nowrap;
   justify-self: start;
@@ -1024,7 +1063,7 @@ select:focus {
 .signature-grid {
   display: grid;
   grid-template-columns: 1.25fr 1.55fr .75fr .8fr;
-  min-height: 38mm;
+  min-height: 40mm;
 }
 
 .signature-grid div {
@@ -1032,6 +1071,7 @@ select:focus {
   grid-template-rows: auto 1fr;
   border-right: 1px solid #333333;
   text-align: center;
+  min-height: 40mm;
 }
 
 .signature-grid div:last-child {
@@ -1040,7 +1080,7 @@ select:focus {
 
 .signature-grid strong {
   border-bottom: 1px solid #333333;
-  padding: 1mm;
+  padding: .5mm 1mm;
   background: #fafbfa;
   font-weight: 700;
 }
@@ -1058,6 +1098,7 @@ select:focus {
   display: grid;
   gap: 0;
   width: calc(100% - 4mm);
+  align-content: end;
 }
 
 .signature-person select {
@@ -1069,7 +1110,7 @@ select:focus {
 .signature-grid select,
 .signature-grid textarea.multiline-dropdown {
   min-height: 0;
-  margin-top: 8mm;
+  margin-top: 4mm;
   border-color: var(--line-2);
   border-radius: var(--radius-sm);
   font-weight: 700;
@@ -1083,13 +1124,15 @@ select:focus {
 /* ── Notes & end ── */
 .notes-field {
   display: block;
-  border-top: 1px solid #333333;
   font-weight: 700;
   white-space: pre-line;
+  min-height: 16mm;
+  margin-top: 4mm;
+  padding-top: 2mm;
 }
 
 .end-report {
-  padding: 1.2mm 1mm;
+  padding: 1mm 1mm 0.4mm;
   font-weight: 700;
   text-align: center;
   background: #f0f4f2;
@@ -1100,11 +1143,14 @@ select:focus {
 
 /* ── Page footer ── */
 .page-footer {
+  position: absolute;
+  left: 12.5mm;
+  right: 12.5mm;
+  bottom: 4mm;
   display: grid;
   grid-template-columns: 1fr 1.4fr 1fr;
   align-items: end;
   gap: 4mm;
-  margin-top: 3mm;
   font-size: 9px;
   font-weight: 700;
   color: var(--muted);
@@ -1336,8 +1382,8 @@ select:focus {
 
   .rt-page {
     width: 210mm;
-    height: auto;
-    min-height: 297mm;
+    height: 302mm;
+    min-height: 302mm;
     border: 0;
     box-shadow: none;
     margin: 0;
@@ -1408,3 +1454,4 @@ select:focus {
     background: transparent;
   }
 }
+
