@@ -177,7 +177,9 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private readonly acceptedObservationCodes = ['NSD', 'CCI', 'CCII'];
   private readonly storageKey = 'jai-generic-rt-report-draft';
   private readonly namedDraftsStorageKey = 'jai-generic-rt-report-named-drafts';
+  private readonly namedDraftsSyncKey = 'jai-generic-rt-report-named-drafts';
   private readonly settingsStorageKey = 'jai-generic-rt-report-settings';
+  private readonly settingsSyncKey = 'jai-generic-rt-report-settings';
   private readonly a4WidthMm = 210;
   private readonly a4HeightMm = 302;
   private resizeObserver?: ResizeObserver;
@@ -251,6 +253,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     void this.refreshPartNumberOptions();
     void this.refreshNextReportNumber();
     void this.loadSettingsFromServer();
+    void this.loadNamedDraftsFromServer();
     const reportId = Number(this.route.snapshot.queryParamMap.get('reportId'));
     if (reportId) {
       void this.loadReportFromServer(reportId);
@@ -711,7 +714,20 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
     const reportId = Number(normalized);
     if (!Number.isFinite(reportId)) {
-      this.validationMessage = 'Select a saved report to delete.';
+      const drafts = this.loadNamedDrafts();
+      if (!drafts[normalized]) {
+        this.validationMessage = 'Select a saved report to delete.';
+        return;
+      }
+
+      delete drafts[normalized];
+      const serialized = JSON.stringify(drafts);
+      localStorage.setItem(this.namedDraftsStorageKey, serialized);
+      void this.saveNamedDraftsToServer(serialized);
+      this.validationMessage = `Draft "${normalized}" deleted successfully.`;
+      this.showSaveStatus('Draft deleted successfully.', 'success');
+      this.closeConfirmDialog();
+      this.closeDraftDialog();
       return;
     }
 
@@ -754,6 +770,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       const payload = this.createReportPayload('NABL', 'DRAFT');
       console.log('[report:save]', payload);
       const saved = await firstValueFrom(this.reportService.createReport(payload));
+      await this.saveNamedDraftToServer(normalizedName, this.createDraftSnapshot());
       this.currentReportId = saved.id;
       this.selectedDraftToLoad = String(saved.id);
       await this.refreshNextReportNumber();
@@ -1555,6 +1572,37 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
+  private async loadNamedDraftsFromServer(): Promise<void> {
+    try {
+      const response = await firstValueFrom(this.reportService.getAppSetting(this.namedDraftsSyncKey));
+      if (!response?.value) return;
+
+      localStorage.setItem(this.namedDraftsStorageKey, response.value);
+    } catch (error) {
+      console.error('Failed to load synced drafts:', error);
+    }
+  }
+
+  private async saveNamedDraftToServer(name: string, draft: GenericRtDraft): Promise<void> {
+    try {
+      const drafts = this.loadNamedDrafts();
+      drafts[name] = draft;
+      const serialized = JSON.stringify(drafts);
+      localStorage.setItem(this.namedDraftsStorageKey, serialized);
+      await firstValueFrom(this.reportService.updateAppSetting(this.namedDraftsSyncKey, serialized));
+    } catch (error) {
+      console.error('Failed to save synced draft:', error);
+    }
+  }
+
+  private async saveNamedDraftsToServer(serialized: string): Promise<void> {
+    try {
+      await firstValueFrom(this.reportService.updateAppSetting(this.namedDraftsSyncKey, serialized));
+    } catch (error) {
+      console.error('Failed to sync draft deletion:', error);
+    }
+  }
+
   private normalizeTableColumnWidths(widths: number[] | undefined): number[] {
     if (!Array.isArray(widths) || widths.length !== DEFAULT_TABLE_COLUMN_WIDTHS.length) {
       return [...DEFAULT_TABLE_COLUMN_WIDTHS];
@@ -1579,14 +1627,14 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private createRow(description: string, segment: string): GenericRtRow {
     return {
       description,
-      thickness: 'Multiple',
+      thickness: '',
       segment,
       sfd: '20"',
       density: '2 -3.5',
       sensitivity: '2%',
       filmSize: '4 x 12"',
-      observations: 'N S D\nN S D',
-      result: this.defaultResultForObservation('N S D\nN S D')
+      observations: 'N S D',
+      result: this.defaultResultForObservation('N S D')
     };
   }
 
@@ -1905,13 +1953,13 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
         },
         evaluatedBy: {
           label: 'Evaluated By',
-          options: ['M Samson (Radiographer)', 'Ganeshan (Radiographer)', 'Rajendran (Radiographer)'],
-          defaultValue: 'M Samson (Radiographer)'
+          options: ['','M Samson (Radiographer)', 'Ganeshan (Radiographer)', 'Rajendran (Radiographer)'],
+          defaultValue: ' '
         },
         reviewedBy: {
           label: 'Reviewed & Authorized By',
-          options: ['Authorized Signatory', 'M Samson', 'Ganeshan', 'Rajendran'],
-          defaultValue: 'Authorized Signatory'
+          options: [' ', 'M Samson', 'Ganeshan', 'Rajendran'],
+          defaultValue: ' '
         }
       },
       defaultValues: {
@@ -1932,8 +1980,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private async loadSettingsFromServer(): Promise<void> {
     const defaults = this.defaultSettings();
     try {
-      const response = await firstValueFrom(this.reportService.getReportSettings());
-      const parsed = response?.settings && typeof response.settings === 'object' ? (response.settings as Partial<GenericRtSettings> & {
+      const response = await firstValueFrom(this.reportService.getAppSetting(this.settingsSyncKey));
+      const parsed = response?.value ? (JSON.parse(response.value) as Partial<GenericRtSettings> & {
         reportPrefixes?: string[];
         exposureTechniques?: string[];
         testPerformedBy?: string[];
@@ -1978,7 +2026,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
   private async saveSettingsToServer(): Promise<void> {
     try {
-      await firstValueFrom(this.reportService.updateReportSettings(this.settings));
+      await firstValueFrom(this.reportService.updateAppSetting(this.settingsSyncKey, JSON.stringify(this.settings)));
     } catch (error) {
       console.error('Failed to save report settings to server:', error);
     }

@@ -11,7 +11,7 @@
       <button type="button" (click)="showCustomerPartSelection = !showCustomerPartSelection">
         {{ showCustomerPartSelection ? 'Hide Customer/Part' : 'Show Customer/Part' }}
       </button>
-      <a class="home-link" href="/">Dashboard</a>
+      <a class="home-link" href="/dashboard">Dashboard</a>
     </div>
   </header>
 
@@ -481,7 +481,7 @@
                 (click)="uncombineRow(pageIndex, rowIndex)"
               >x</button>
               {{ serialNumber(pageIndex, rowIndex) }}
-              <label class="row-font-size-control">
+              <!--label class="row-font-size-control">
                 <span>Size</span>
                 <input
                   type="number"
@@ -492,7 +492,7 @@
                   [name]="'rowFontSize' + pageIndex + '-' + rowIndex"
                   (ngModelChange)="updateRowFontSize(row, $event)"
                 />
-              </label>
+              </label> -->
             </td>
             <td *ngIf="showDescriptionCell(pageIndex, rowIndex)" [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)">
               <textarea [(ngModel)]="row.description" [name]="'desc' + pageIndex + '-' + rowIndex" rows="4"></textarea>

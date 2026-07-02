@@ -1,6 +1,22 @@
-<div class="app-status-badge" [class.connected]="dbConnected" [class.disconnected]="!dbConnected" aria-live="polite">
+<div
+  class="app-status-badge"
+  *ngIf="showStatusBadge"
+  [class.connected]="dbConnected"
+  [class.disconnected]="!dbConnected"
+  aria-live="polite"
+>
   <span class="app-status-dot"></span>
   <span>{{ dbStatusText }}</span>
 </div>
+
+<button
+  *ngIf="showStatusBadge"
+  type="button"
+  class="logout-pill"
+  (click)="logout()"
+  aria-label="Log out"
+>
+  Logout
+</button>
 
 <router-outlet></router-outlet>

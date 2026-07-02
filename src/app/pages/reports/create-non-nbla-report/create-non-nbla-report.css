@@ -1066,23 +1066,24 @@ select:focus {
   position: absolute;
   top: 1mm;
   left: -5mm;
-  width: 16px;
-  min-height: 16px;
-  border-radius: 50%;
-  color: var(--danger);
-  font-size: 11px;
+  width: 24px;
+  min-height: 24px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 16px;
   line-height: 1;
   padding: 0;
-  border: 1px solid var(--danger-border);
-  background: var(--danger-light);
+  border: 1px solid #a61d1d;
+  background: #b3261e;
   font-weight: 700;
+  box-shadow: 0 2px 6px rgba(179, 38, 30, 0.25);
 }
 
 .remove-row:hover {
-  border-color: var(--danger);
-  background: #f9e2de;
+  border-color: #861818;
+  background: #9f1f1f;
   transform: none;
-  box-shadow: none;
+  box-shadow: 0 3px 8px rgba(159, 31, 31, 0.28);
 }
 
 /* ── Page fill spacer ── */
@@ -1278,16 +1279,9 @@ select:focus {
 
 .part-name-line {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 1.5mm;
-}
-
-.part-name-toolbar {
-  display: inline-flex;
-  align-items: center;
-  gap: 1mm;
-  flex-wrap: wrap;
 }
 
 .part-name-editor {
@@ -1299,6 +1293,11 @@ select:focus {
   white-space: pre-wrap;
   outline: none;
   width: 100%;
+  text-align: center;
+  direction: ltr;
+  unicode-bidi: plaintext;
+  resize: none;
+  overflow: hidden;
 }
 
 .part-name-editor:focus {
@@ -1306,7 +1305,6 @@ select:focus {
 }
 
 .add-part-name-btn,
-.align-part-name-btn,
 .remove-part-name-btn {
   min-height: 5.2mm;
   border-radius: 999px;
@@ -1327,15 +1325,14 @@ select:focus {
 }
 
 .remove-part-name-btn {
-  min-width: 7mm;
+  min-width: 12mm;
+  min-height: 9mm;
+  font-size: 12px;
   padding: 0;
-}
-
-.align-part-name-btn {
-  min-width: 14mm;
-  background: #f3f7f5;
-  border-color: var(--line-2);
-  color: var(--text);
+  color: #ffffff;
+  border-color: #a61d1d;
+  background: #b3261e;
+  box-shadow: 0 2px 6px rgba(179, 38, 30, 0.25);
 }
 
 .end-report {

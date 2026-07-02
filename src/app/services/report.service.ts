@@ -73,4 +73,12 @@ export class ReportService {
   updateReportSettings(settings: any) {
     return this.http.put<{ message: string; settings: any }>(`${this.api}/reports/settings`, { settings });
   }
+
+  getAppSetting(key: string) {
+    return this.http.get<{ key: string; value: string | null; updated_at: string | null }>(`${this.api}/app-settings/${encodeURIComponent(key)}`);
+  }
+
+  updateAppSetting(key: string, value: string) {
+    return this.http.put<{ message: string; key: string; value: string }>(`${this.api}/app-settings/${encodeURIComponent(key)}`, { value });
+  }
 }

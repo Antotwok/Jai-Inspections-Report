@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const puppeteer = require('puppeteer');
+const ExcelJS = require('exceljs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { pool } = require('./database/db');
@@ -117,6 +118,59 @@ app.get('/api/reports', listReports);
 app.get('/api/reports/next-number', getNablReportCounter);
 app.get('/api/reports/settings', getReportSettings);
 app.put('/api/reports/settings', updateReportSettings);
+app.get('/api/app-settings/:key', async (req, res) => {
+  try {
+    const { key } = req.params || {};
+    if (!key) {
+      return res.status(400).json({ message: 'Missing setting key.' });
+    }
+
+    const result = await pool.query('SELECT setting_value, updated_at FROM app_settings WHERE setting_key = $1', [key]);
+    if (!result.rowCount) {
+      return res.json({ key, value: null, updated_at: null });
+    }
+
+    res.json({
+      key,
+      value: result.rows[0].setting_value,
+      updated_at: result.rows[0].updated_at
+    });
+  } catch (error) {
+    console.error('Failed to fetch app setting:', error);
+    res.status(500).json({
+      message: reportErrorMessage(error, 'Failed to fetch app setting.'),
+      details: error?.detail || null
+    });
+  }
+});
+
+app.put('/api/app-settings/:key', async (req, res) => {
+  try {
+    const { key } = req.params || {};
+    const { value } = req.body || {};
+    if (!key) {
+      return res.status(400).json({ message: 'Missing setting key.' });
+    }
+
+    await pool.query(
+      `
+        INSERT INTO app_settings (setting_key, setting_value, updated_at)
+        VALUES ($1, $2, CURRENT_TIMESTAMP)
+        ON CONFLICT (setting_key)
+        DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP
+      `,
+      [key, String(value ?? '')]
+    );
+
+    res.json({ message: 'Setting saved successfully.', key, value });
+  } catch (error) {
+    console.error('Failed to save app setting:', error);
+    res.status(500).json({
+      message: reportErrorMessage(error, 'Failed to save app setting.'),
+      details: error?.detail || null
+    });
+  }
+});
 app.get('/api/reports/:id', getReportById);
 app.get('/api/reports/:id/editor', getReportForEditor);
 app.post('/api/reports', createReport);
@@ -156,6 +210,90 @@ app.post('/api/export-pdf', async (req, res) => {
     if (browser) {
       await browser.close();
     }
+  }
+});
+
+app.post('/api/export-excel', async (req, res) => {
+  const { report } = req.body || {};
+  if (!report || typeof report !== 'object') {
+    res.status(400).send('Missing report payload.');
+    return;
+  }
+
+  try {
+    const reportJson = typeof report.report_json === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(report.report_json);
+          } catch {
+            return {};
+          }
+        })()
+      : (report.report_json || {});
+    const reportRows = Array.isArray(report.report_rows)
+      ? report.report_rows
+      : Array.isArray(reportJson.reportRows)
+        ? reportJson.reportRows
+        : [];
+    const customerFields = Array.isArray(reportJson.customerFields) ? reportJson.customerFields : [];
+    const reportFields = Array.isArray(reportJson.reportFields) ? reportJson.reportFields : [];
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Jai Report System';
+    workbook.created = new Date();
+
+    const summarySheet = workbook.addWorksheet('Report');
+    summarySheet.columns = [
+      { header: 'Field', key: 'field', width: 28 },
+      { header: 'Value', key: 'value', width: 60 }
+    ];
+
+    summarySheet.addRow({ field: 'Report No', value: report.report_no || '' });
+    summarySheet.addRow({ field: 'Report Type', value: report.report_type || '' });
+    summarySheet.addRow({ field: 'Customer Name', value: report.customer_name || '' });
+    summarySheet.addRow({ field: 'Part Number', value: report.part_number || '' });
+    summarySheet.addRow({ field: 'Date Code', value: report.date_code || '' });
+    summarySheet.addRow({ field: '' , value: '' });
+    summarySheet.addRow({ field: 'Customer Fields', value: '' });
+    customerFields.forEach((field) => summarySheet.addRow({ field: field?.label || '', value: field?.value || '' }));
+    summarySheet.addRow({ field: '' , value: '' });
+    summarySheet.addRow({ field: 'Report Fields', value: '' });
+    reportFields.forEach((field) => summarySheet.addRow({ field: field?.label || '', value: field?.value || '' }));
+
+    const rowsSheet = workbook.addWorksheet('Rows');
+    rowsSheet.columns = [
+      { header: 'Sr No', key: 'srNo', width: 10 },
+      { header: 'Film Identification', key: 'filmIdentification', width: 42 },
+      { header: 'Thickness', key: 'thickness', width: 14 },
+      { header: 'Segment', key: 'segment', width: 12 },
+      { header: 'Film Size', key: 'filmSize', width: 16 },
+      { header: 'Observations', key: 'observations', width: 60 },
+      { header: 'Results', key: 'results', width: 14 }
+    ];
+
+    reportRows.forEach((row, index) => {
+      const data = row?.row || row || {};
+      rowsSheet.addRow({
+        srNo: index + 1,
+        filmIdentification: row?.film_identification || data?.description || '',
+        thickness: row?.thickness || data?.thickness || '',
+        segment: row?.segment || data?.segment || '',
+        filmSize: row?.film_size || data?.filmSize || '',
+        observations: row?.observation || data?.observations || '',
+        results: row?.result || data?.results || ''
+      });
+    });
+
+    summarySheet.getRow(1).font = { bold: true };
+    rowsSheet.getRow(1).font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="rt-report.xlsx"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Unable to export Excel.');
   }
 });
 

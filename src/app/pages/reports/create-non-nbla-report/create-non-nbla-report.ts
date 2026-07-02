@@ -7,7 +7,6 @@ import {
   OnDestroy,
   OnInit,
   QueryList,
-  ViewChild,
   ViewChildren
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -218,13 +217,14 @@ let nextFilmGroupId = 1;
 })
 export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, OnInit {
   @ViewChildren('reportPage') private reportPageElements!: QueryList<ElementRef<HTMLElement>>;
-  @ViewChild('footerPartNameEditor') private footerPartNameEditor?: ElementRef<HTMLDivElement>;
 
   readonly otherOption = OTHER_OPTION;
   private readonly acceptedObservationCodes = ['NSD', 'CCI', 'CCII'];
   private readonly storageKey = 'jai-generic-rt-report-draft';
   private readonly namedDraftsStorageKey = 'jai-generic-rt-report-named-drafts';
+  private readonly namedDraftsSyncKey = 'jai-generic-rt-report-named-drafts';
   private readonly settingsStorageKey = 'jai-generic-rt-report-settings';
+  private readonly settingsSyncKey = 'jai-generic-rt-report-settings';
   private readonly a4WidthMm = 210;
   private readonly a4HeightMm = 297;
   private resizeObserver?: ResizeObserver;
@@ -299,6 +299,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   ngOnInit(): void {
     this.loadCustomers();
+    void this.loadNamedDraftsFromServer();
+    void this.loadSettingsFromServer();
     const reportId = Number(this.route.snapshot.queryParamMap.get('reportId'));
     if (reportId) {
       void this.loadReportFromServer(reportId);
@@ -615,33 +617,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
-  onFooterPartNameInput(event: Event): void {
-    const element = event.target as HTMLDivElement;
-    this.footerPartNameHtml = element.innerHTML;
-    this.footerPartName = this.extractPlainTextFromHtml(this.footerPartNameHtml);
-    if (!this.footerPartNameRowVisible && this.footerPartName.trim()) {
-      this.footerPartNameRowVisible = true;
-    }
-    this.schedulePageBoundaryUpdate();
-  }
-
-  onFooterPartNamePaste(event: ClipboardEvent): void {
-    event.preventDefault();
-    const text = event.clipboardData?.getData('text/plain') ?? '';
-    document.execCommand('insertText', false, text);
-    this.onFooterPartNameInput(event as unknown as Event);
-  }
-
-  alignFooterPartName(alignment: 'left' | 'center'): void {
-    const editor = this.footerPartNameEditor?.nativeElement;
-    if (!editor) return;
-    editor.focus();
-    document.execCommand(alignment === 'center' ? 'justifyCenter' : 'justifyLeft');
-    this.footerPartNameHtml = editor.innerHTML;
-    this.footerPartName = this.extractPlainTextFromHtml(this.footerPartNameHtml);
-    this.schedulePageBoundaryUpdate();
-  }
-
   textToHtml(value: string): string {
     return this.escapeHtml(value).replace(/\n/g, '<br>');
   }
@@ -829,6 +804,33 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
+  async exportExcel(): Promise<void> {
+    try {
+      const response = await fetch(`${environment.apiUrl}/export-excel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report: this.createReportPayload('NON_NABL', 'DRAFT') })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${this.pdfFileName()}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      this.validationMessage = 'Excel exported successfully.';
+      this.setAppStatus('Excel Exported Successfully', 'warning');
+    } catch (error) {
+      this.validationMessage = 'Start the backend server, then try Export in Excel again.';
+      this.setAppStatus('Unable to Export Report', 'error');
+      console.error(error);
+    }
+  }
+
   private serializedReportHtml(): string {
     const report = document.querySelector('.report-stack');
     if (!report) return '';
@@ -936,7 +938,20 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     const reportId = Number(normalized);
     if (!Number.isFinite(reportId)) {
-      this.validationMessage = 'Select a saved report to delete.';
+      const drafts = this.loadNamedDrafts();
+      if (!drafts[normalized]) {
+        this.validationMessage = 'Select a saved report to delete.';
+        return;
+      }
+
+      delete drafts[normalized];
+      const serialized = JSON.stringify(drafts);
+      localStorage.setItem(this.namedDraftsStorageKey, serialized);
+      void this.saveNamedDraftsToServer(serialized);
+      this.validationMessage = `Draft "${normalized}" deleted successfully.`;
+      this.setAppStatus('Draft Deleted Successfully', 'deleted');
+      this.closeConfirmDialog();
+      this.closeDraftDialog();
       return;
     }
 
@@ -984,6 +999,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       const payload = this.createReportPayload('NON_NABL', mode === 'completed' ? 'COMPLETED' : 'DRAFT');
       console.log('[report:save]', payload);
       const saved = await firstValueFrom(this.reportService.createReport(payload));
+      await this.saveNamedDraftToServer(normalizedName, this.createDraftSnapshot());
       this.currentReportId = saved.id;
       this.selectedDraftToLoad = String(saved.id);
       await this.incrementCustomerReportNumber();
@@ -1143,6 +1159,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const snapshot = this.createDraftSnapshot();
     const selectedCustomer = this.getSelectedCustomer();
     const selectedPart = this.getSelectedPart();
+    const reportNo = this.formatReportNumber();
     const rows = this.pages.flatMap((page, pageIndex) =>
       page.rows.map((row, rowIndex) => ({
         row_order: pageIndex * 1000 + rowIndex,
@@ -1158,7 +1175,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     return {
       report_type: reportType,
-      report_no: this.fieldValue('Report No'),
+      report_no: reportNo,
       customer_id: selectedCustomer ? Number(selectedCustomer.id) : (this.selectedCustomerId ? Number(this.selectedCustomerId) : null),
       customer_name: selectedCustomer?.customer_name || this.extractCustomerNameFromField(),
       part_id: selectedPart ? Number(selectedPart.id) : (this.selectedPartId ? Number(this.selectedPartId) : null),
@@ -1180,7 +1197,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         partNumber: selectedPart?.part_number || this.fieldValue('Part No *'),
         dateCode: this.selectedDateCode || null,
         reportType,
-        reportNo: this.fieldValue('Report No'),
+        reportNo,
         density: this.density,
         sensitivity: this.sensitivity,
         reportRows: rows
@@ -1195,7 +1212,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const nextNumber = Number.isFinite(current) ? current + 1 : 1;
     const nextDigits = String(nextNumber).padStart(4, '0');
     this.reportNumberDigits = nextDigits;
-    this.setFieldValue('Report No', `JIA / ${code} / ${nextDigits}`);
+    this.setFieldValue('Report No', this.formatReportNumber(code, nextDigits));
   }
 
   private async incrementCustomerReportNumber(): Promise<void> {
@@ -1437,6 +1454,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   onSfdModeChange(field: ReportField, value: string): void {
     field.label = value;
+    field.value = '';
     this.schedulePageBoundaryUpdate();
   }
 
@@ -1449,6 +1467,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
       if (field.label === 'Source Size / Focal Spot') {
         field.label = field.value?.trim() && field.value.trim() !== '2.4mm x 2.7mm' ? FOCAL_SPOT_OPTION : SOURCE_SIZE_OPTION;
+      }
+
+      if (field.label === 'S.F.D / F.F.D') {
+        field.label = field.value?.trim() === FFD_OPTION ? FFD_OPTION : SFD_OPTION;
+        field.value = '';
       }
     });
   }
@@ -1502,7 +1525,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       value = value.slice(prefix.length);
     }
     this.reportNumberDigits = value;
-    this.setFieldValue('Report No', `${prefix}${value}`.trim());
+    const suffix = this.reportNumberSuffix();
+    this.setFieldValue('Report No', suffix ? `${prefix}${value} / ${suffix}`.trim() : `${prefix}${value}`.trim());
   }
 
   updateDate(_label: 'Issue Date', isoDate: string): void {
@@ -1686,7 +1710,12 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.selectedDateCode = dateCode;
     this.dateCodeSearchText = dateCode;
     this.combinationDialogMode = 'addCombination';
-    this.startingSequence = Number.isFinite(this.startingSequence) && this.startingSequence >= 0 ? Math.floor(this.startingSequence) : 0;
+    const nextAvailableNumber = Number(this.nextAvailableSequence.replace(/\D+/g, '') || 0);
+    if (Number.isFinite(nextAvailableNumber) && nextAvailableNumber > 0) {
+      this.startingSequence = nextAvailableNumber;
+    } else {
+      this.startingSequence = Number.isFinite(this.startingSequence) && this.startingSequence >= 0 ? Math.floor(this.startingSequence) : 0;
+    }
     this.combinationSaveMessage = '';
     this.setAppStatus(`Ready to create sequence for ${partNumber} + ${dateCode}.`, 'warning');
   }
@@ -1739,8 +1768,17 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     const filmSeries = part?.film_series || 'J';
-    const startNumber = Number(this.nextAvailableSequence.replace(/\D+/g, '') || 0);
-    let nextSequence = Number.isFinite(startNumber) && startNumber > 0 ? startNumber : 1;
+    const nextAvailableNumber = Number(this.nextAvailableSequence.replace(/\D+/g, '') || 0);
+    const startingNumber = Number(this.startingSequence);
+    const shouldUseStartingSequence =
+      this.showStartingSequence || !this.nextAvailableSequence || !Number.isFinite(nextAvailableNumber) || nextAvailableNumber <= 0;
+    let nextSequence = shouldUseStartingSequence && Number.isFinite(startingNumber) && startingNumber >= 0
+      ? Math.floor(startingNumber)
+      : nextAvailableNumber;
+
+    if (!Number.isFinite(nextSequence) || nextSequence <= 0) {
+      nextSequence = 1;
+    }
 
     this.pages.forEach((page) => {
       page.rows.forEach((row, index) => {
@@ -1801,7 +1839,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
           this.startingSequence = 0;
         }
         if (!this.showStartingSequence) {
-          this.startingSequence = Number(sequence?.current_sequence ?? 0);
+          const nextSequenceNumber = Number(String(sequence?.next_available_sequence || '').replace(/\D+/g, '') || 0);
+          this.startingSequence = Number.isFinite(nextSequenceNumber) && nextSequenceNumber > 0
+            ? nextSequenceNumber
+            : Number(sequence?.current_sequence ?? 0) + 1;
         }
       },
       error: (error) => {
@@ -1991,6 +2032,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   persistSettings(): void {
     localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
+    void this.saveSettingsToServer();
     this.applyDefaultValuesToBlankFields();
   }
 
@@ -2168,6 +2210,37 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       return JSON.parse(saved) as Record<string, GenericRtDraft>;
     } catch {
       return {};
+    }
+  }
+
+  private async loadNamedDraftsFromServer(): Promise<void> {
+    try {
+      const response = await firstValueFrom(this.reportService.getAppSetting(this.namedDraftsSyncKey));
+      if (!response?.value) return;
+
+      localStorage.setItem(this.namedDraftsStorageKey, response.value);
+    } catch (error) {
+      console.error('Failed to load synced drafts:', error);
+    }
+  }
+
+  private async saveNamedDraftToServer(name: string, draft: GenericRtDraft): Promise<void> {
+    try {
+      const drafts = this.loadNamedDrafts();
+      drafts[name] = draft;
+      const serialized = JSON.stringify(drafts);
+      localStorage.setItem(this.namedDraftsStorageKey, serialized);
+      await firstValueFrom(this.reportService.updateAppSetting(this.namedDraftsSyncKey, serialized));
+    } catch (error) {
+      console.error('Failed to save synced draft:', error);
+    }
+  }
+
+  private async saveNamedDraftsToServer(serialized: string): Promise<void> {
+    try {
+      await firstValueFrom(this.reportService.updateAppSetting(this.namedDraftsSyncKey, serialized));
+    } catch (error) {
+      console.error('Failed to sync draft deletion:', error);
     }
   }
 
@@ -2531,6 +2604,41 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     };
   }
 
+  private async loadSettingsFromServer(): Promise<void> {
+    try {
+      const response = await firstValueFrom(this.reportService.getAppSetting(this.settingsSyncKey));
+      if (!response?.value) return;
+
+      const parsed = JSON.parse(response.value) as Partial<GenericRtSettings> & {
+        reportPrefixes?: string[];
+        exposureTechniques?: string[];
+        testPerformedBy?: string[];
+      };
+      const defaults = this.defaultSettings();
+      const dropdowns = { ...defaults.dropdowns, ...(parsed.dropdowns ?? {}) };
+      if (parsed.reportPrefixes?.length) dropdowns['reportPrefixes'].options = parsed.reportPrefixes;
+      if (parsed.exposureTechniques?.length) dropdowns['exposureTechniques'].options = parsed.exposureTechniques;
+      if (parsed.testPerformedBy?.length) dropdowns['testPerformedBy'].options = parsed.testPerformedBy;
+
+      this.settings = {
+        dropdowns,
+        defaultValues: { ...defaults.defaultValues, ...(parsed.defaultValues ?? {}) }
+      };
+      localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
+      this.applyDefaultValuesToBlankFields();
+    } catch (error) {
+      console.error('Failed to load synced settings:', error);
+    }
+  }
+
+  private async saveSettingsToServer(): Promise<void> {
+    try {
+      await firstValueFrom(this.reportService.updateAppSetting(this.settingsSyncKey, JSON.stringify(this.settings)));
+    } catch (error) {
+      console.error('Failed to save synced settings:', error);
+    }
+  }
+
   private dropdownDefault(key: DropdownKey): string {
     return this.settings.dropdowns[key].defaultValue;
   }
@@ -2666,5 +2774,25 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         this.setFieldValue(label, value);
       }
     });
+  }
+
+  private reportNumberSuffix(): string {
+    const source = this.fieldValue('Source').trim().toUpperCase();
+    if (!source) return '';
+    if (source.includes('X-RAY') || source.includes('X RAY')) return 'R';
+    if (source.includes('IR-192') || source.includes('CO-60') || source.includes('GAMMA')) return 'G';
+    return '';
+  }
+
+  private formatReportNumber(customerCode?: string, digits?: string): string {
+    const code = String(customerCode || this.getSelectedCustomer()?.customer_code || '').trim().toUpperCase();
+    const nextDigits = String(digits || this.reportNumberDigits || this.fieldValue('Report No')).trim();
+    const suffix = this.reportNumberSuffix();
+
+    if (!code || !nextDigits) {
+      return this.fieldValue('Report No');
+    }
+
+    return suffix ? `JIA / ${code} / ${nextDigits} / ${suffix}` : `JIA / ${code} / ${nextDigits}`;
   }
 }

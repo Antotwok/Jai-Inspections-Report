@@ -15,11 +15,11 @@
       </div>
     </div>
     <div class="header-actions">
-      <button type="button" (click)="showCustomerPartSelection = !showCustomerPartSelection">
+      <!-- <button type="button" (click)="showCustomerPartSelection = !showCustomerPartSelection">
         {{ showCustomerPartSelection ? 'Hide Customer/Part' : 'Show Customer/Part' }}
-      </button>
-      <a class="home-link" href="/">Dashboard</a>
-    </div>
+      </button> -->
+      <a class="home-link" href="/dashboard">Dashboard</a>
+    </div> 
   </header>
 
   <section class="report-workspace" aria-label="Non-NABL report workspace">
@@ -85,6 +85,7 @@
           <h2>Actions</h2>
         </div>
         <div class="action-grid">
+          <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
           <button type="button" class="primary-action" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
           <label class="boundary-toggle">
             <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
@@ -93,7 +94,8 @@
           <button type="button" (click)="openSaveDialog()">Save</button>
           <button type="button" (click)="openLoadDialog()">Load</button>
           <button type="button" (click)="openUpdateDialog()">Update</button>
-          <button type="button" class="export-action" (click)="printReport()">Print PDF</button>
+          <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
+          <button type="button" class="export-action" (click)="exportExcel()">Export in Excel</button>
         </div>
         <div class="action-grid secondary-actions">
           <button type="button" [disabled]="!canUndo" (click)="undo()">Undo</button>
@@ -122,18 +124,18 @@
             Lower details
             <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
           </label>
-            <div class="mode-switch" role="group" aria-label="Layout mode">
+           <!-- <div class="mode-switch" role="group" aria-label="Layout mode">
               <button type="button" [class.active]="layoutMode === 'edit'" (click)="setLayoutMode('edit')">Edit</button>
               <button type="button" [class.active]="layoutMode === 'preview'" (click)="setLayoutMode('preview')">Preview</button>
             </div>
           <div class="mode-switch" role="group" aria-label="Page orientation">
-            <button type="button" [class.active]="pageOrientation === 'portrait'" (click)="setPageOrientation('portrait')">Portrait</button>
-            <button type="button" [class.active]="pageOrientation === 'landscape'" (click)="setPageOrientation('landscape')">Landscape</button>
-          </div>
-          <label class="boundary-toggle">
+             <button type="button" [class.active]="pageOrientation === 'portrait'" (click)="setPageOrientation('portrait')">Portrait</button>
+            <button type="button" [class.active]="pageOrientation === 'landscape'" (click)="setPageOrientation('landscape')">Landscape</button> 
+          </div>-->
+          <!--<label class="boundary-toggle">
             <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
             Auto count
-          </label>
+          </label>-->
         </div>
         <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
         <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
@@ -183,13 +185,15 @@
                   </ng-container>
                   <ng-template #customerLabelChoice>
                     <ng-container *ngIf="pair.customer && isSfdSelectorLabel(pair.customer.label); else customerLabelText">
-                      <input
+                      <select
                         class="label-select"
-                        type="text"
                         [ngModel]="pair.customer.label"
                         [name]="'customerLabelSelect' + i"
                         (ngModelChange)="onSfdModeChange(pair.customer, $event)"
-                      />
+                      >
+                        <option value="S.F.D">S.F.D</option>
+                        <option value="F.F.D">F.F.D</option>
+                      </select>
                     </ng-container>
                   </ng-template>
                   <ng-template #customerLabelText>
@@ -367,22 +371,18 @@
               </div>
               <div class="part-name-detail-row" [class.part-name-shown]="showFooterPartNameRow || footerPartNameText">
                 <div class="part-name-line" *ngIf="showFooterPartNameRow || footerPartNameText">
-                  <div class="part-name-toolbar">
-                    <button type="button" class="align-part-name-btn" (click)="alignFooterPartName('left')">Left</button>
-                    <button type="button" class="align-part-name-btn" (click)="alignFooterPartName('center')">Center</button>
-                    <button type="button" class="remove-part-name-btn" (click)="toggleFooterPartNameRow()" aria-label="Remove part name row">
-                      -
-                    </button>
-                  </div>
-                  <div
-                    #footerPartNameEditor
+                  <textarea
                     class="part-name-editor"
-                    contenteditable="true"
+                    dir="ltr"
                     spellcheck="false"
-                    [innerHTML]="footerPartNameHtml || textToHtml(footerPartName)"
-                    (input)="onFooterPartNameInput($event)"
-                    (paste)="onFooterPartNamePaste($event)"
-                  ></div>
+                    [(ngModel)]="footerPartName"
+                    name="footerPartName"
+                    rows="1"
+                    (ngModelChange)="footerPartNameHtml = textToHtml($event); schedulePageBoundaryUpdate()"
+                  ></textarea>
+                  <button type="button" class="remove-part-name-btn" (click)="toggleFooterPartNameRow()" aria-label="Remove part name row">
+                    -
+                  </button>
                 </div>
               </div>
             </section>
