@@ -73,7 +73,13 @@
             <input type="number" min="0" step="1" [(ngModel)]="startingSequence" name="startingSequence" />
           </label>
           <p class="sequence-missing" *ngIf="sequenceStatusMessage">{{ sequenceStatusMessage }}</p>
-          <button type="button" class="primary-action" *ngIf="showStartingSequence || sequenceStatusMessage" (click)="openAddCombinationDialog()">
+          <button
+            type="button"
+            class="primary-action"
+            [disabled]="!selectedPartNumber || !selectedDateCode"
+            *ngIf="selectedPartNumber && selectedDateCode"
+            (click)="openAddCombinationDialog()"
+          >
             Create Sequence
           </button>
         </div>
@@ -695,6 +701,22 @@
         >
           Save as Completed
         </button>
+      </div>
+    </section>
+  </div>
+
+  <div class="dialog-backdrop" *ngIf="combinationConfirmMode" role="presentation" (click)="cancelCombinationCreation()">
+    <section class="draft-dialog" role="dialog" aria-modal="true" aria-labelledby="combinationConfirmTitle" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <p class="eyebrow">Create sequence</p>
+        <h2 id="combinationConfirmTitle">{{ combinationConfirmTitle }}</h2>
+      </div>
+
+      <p class="dialog-copy">{{ combinationConfirmCopy }}</p>
+
+      <div class="dialog-actions">
+        <button type="button" (click)="cancelCombinationCreation()">Cancel</button>
+        <button type="button" class="primary-action" (click)="confirmCombinationCreation()">Yes, Create</button>
       </div>
     </section>
   </div>

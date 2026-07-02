@@ -157,6 +157,7 @@ type DropdownKey =
 type DraftDialogMode = 'save' | 'load' | '';
 type ConfirmDialogMode = 'update' | 'reset' | 'deleteDraft' | '';
 type CombinationDialogMode = '' | 'addCombination';
+type CombinationConfirmMode = '' | 'createSequence';
 type SaveMode = 'draft' | 'completed';
 
 
@@ -243,6 +244,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   pageBoundaryStates: PageBoundaryState[] = [];
   settingsOpen = false;
   combinationDialogMode: CombinationDialogMode = '';
+  combinationConfirmMode: CombinationConfirmMode = '';
   appStatusMessage = 'Ready';
   appStatusType: 'ready' | 'loaded' | 'saved' | 'updated' | 'deleted' | 'warning' | 'error' = 'ready';
   dialogMode: DraftDialogMode = '';
@@ -471,6 +473,20 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     if (this.confirmMode === 'reset') return 'This will clear the current draft from this browser and reload the report.';
     if (this.confirmMode === 'update') return 'This will overwrite the currently loaded draft with the report data on screen.';
     if (this.confirmMode === 'deleteDraft') return 'This will permanently delete the selected saved draft from this browser.';
+    return '';
+  }
+
+  get combinationConfirmTitle(): string {
+    if (this.combinationConfirmMode === 'createSequence') {
+      return 'New combination detected. Do you want to create this sequence?';
+    }
+    return '';
+  }
+
+  get combinationConfirmCopy(): string {
+    if (this.combinationConfirmMode === 'createSequence') {
+      return 'This will create a new part number and date code combination using the starting sequence you entered.';
+    }
     return '';
   }
 
@@ -1621,6 +1637,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.sequenceStatusMessage = '';
     this.showStartingSequence = false;
     this.combinationDialogMode = '';
+    this.combinationConfirmMode = '';
     this.combinationSaveMessage = '';
     this.reportNumberDigits = '';
     this.setFieldValue('Report No', '');
@@ -1710,6 +1727,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.selectedDateCode = dateCode;
     this.dateCodeSearchText = dateCode;
     this.combinationDialogMode = 'addCombination';
+    this.combinationConfirmMode = '';
     const nextAvailableNumber = Number(this.nextAvailableSequence.replace(/\D+/g, '') || 0);
     if (Number.isFinite(nextAvailableNumber) && nextAvailableNumber > 0) {
       this.startingSequence = nextAvailableNumber;
@@ -1722,6 +1740,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   closeCombinationDialog(): void {
     this.combinationDialogMode = '';
+    this.combinationConfirmMode = '';
     this.combinationSaveMessage = '';
   }
 
@@ -1739,6 +1758,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.partSearchText = partNumber;
       this.selectedDateCode = dateCode;
       this.dateCodeSearchText = dateCode;
+      if (this.showStartingSequence) {
+        this.combinationConfirmMode = 'createSequence';
+        return;
+      }
       const result = await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
       if (result?.created === false) {
         this.combinationSaveMessage = result?.message || 'Sequence already exists.';
@@ -1756,6 +1779,40 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.combinationSaveMessage = message;
       this.setAppStatus(message, 'error');
     }
+  }
+
+  async confirmCombinationCreation(): Promise<void> {
+    const partNumber = (this.selectedPartNumber || this.partSearchText).trim();
+    const dateCode = (this.selectedDateCode || this.dateCodeSearchText).trim();
+    if (!partNumber || !dateCode) {
+      this.combinationSaveMessage = 'Select a part number and date code first.';
+      this.setAppStatus('Unable to Create Combination', 'error');
+      return;
+    }
+
+    try {
+      const result = await firstValueFrom(this.customerService.ensurePartDateCode(partNumber, dateCode, this.startingSequence));
+      if (result?.created === false) {
+        this.combinationSaveMessage = result?.message || 'Sequence already exists.';
+        this.setAppStatus(this.combinationSaveMessage, 'warning');
+      } else {
+        this.combinationSaveMessage = result?.message || 'Created new sequence.';
+        this.setAppStatus(this.combinationSaveMessage, 'saved');
+      }
+      this.combinationConfirmMode = '';
+      this.closeCombinationDialog();
+      await this.refreshDateCodesForPart(partNumber);
+      this.loadSequenceForSelection(partNumber, dateCode);
+    } catch (error: any) {
+      console.error('[part-datecode:create:error]', error);
+      const message = error?.error?.message || error?.message || 'Failed to create combination.';
+      this.combinationSaveMessage = message;
+      this.setAppStatus(message, 'error');
+    }
+  }
+
+  cancelCombinationCreation(): void {
+    this.combinationConfirmMode = '';
   }
 
   autoGenerateFilmIds(): void {

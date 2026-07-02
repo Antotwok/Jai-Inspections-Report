@@ -180,7 +180,7 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
   }
 
   customerLabel(row: PartDateCodeSequenceRecord): string {
-    return row.customer_name || this.customers.find((customer) => customer.id === row.customer_id)?.customer_name || '-';
+    return row.customer_name?.trim() || this.customers.find((customer) => customer.id === row.customer_id)?.customer_name?.trim() || 'No company found';
   }
 
   private loadSequences(): void {

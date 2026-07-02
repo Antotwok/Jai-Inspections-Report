@@ -46,7 +46,7 @@ async function searchSequence(req, res) {
         SELECT
           pds.id,
           customers.customer_id,
-          COALESCE(customers.customer_name, '-') AS customer_name,
+          COALESCE(customers.customer_name, '') AS customer_name,
           pds.part_number,
           pds.date_code,
           pds.current_sequence,
