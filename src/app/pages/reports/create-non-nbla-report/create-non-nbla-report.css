@@ -806,6 +806,7 @@ button:disabled {
 }
 
 .detail-row label {
+  display: block;
   border-right: 1px solid #333;
   font-weight: 700;
   padding: 1mm 1.6mm;
@@ -817,6 +818,16 @@ button:disabled {
 .detail-row label:nth-of-type(2) {
   border-left: 1px solid #333;
   background: #fafbfa;
+}
+
+.wrapped-label {
+  display: block;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.wrapped-label-secondary {
+  margin-top: 0.2em;
 }
 
 .unit-hint {

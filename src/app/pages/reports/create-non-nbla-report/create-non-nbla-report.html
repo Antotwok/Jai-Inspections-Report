@@ -204,8 +204,9 @@
             <section class="details-grid">
               <div class="detail-row" *ngFor="let pair of detailPairs; let i = index; trackBy: trackByIndex">
                 <label>
-                  <ng-container *ngIf="pair.customer?.label === 'Customer Name & Address *'; else customerLabelChoice">
-                    <span class="wrapped-label">Customer Name<br />& Address *</span>
+                  <ng-container *ngIf="pair.customer?.label?.includes('Customer Name') && pair.customer?.label?.includes('Address'); else customerLabelChoice">
+                    <span class="wrapped-label">Customer Name</span>
+                    <span class="wrapped-label wrapped-label-secondary">& Address *</span>
                   </ng-container>
                   <ng-template #customerLabelChoice>
                     <ng-container *ngIf="pair.customer && isSfdSelectorLabel(pair.customer.label); else customerLabelText">
@@ -438,7 +439,8 @@
           <ng-template #continuationPage>
             <section class="continuation-summary">
               <div>
-                <strong>Company Name & Address</strong>
+                <strong>Company Name <br>
+                  & Address</strong>
                 <span>{{ companyNameAndAddress }}</span>
               </div>
               <div>
