@@ -14,7 +14,6 @@ import { Customer, CustomerService } from '../../../services/customer.service';
 export class CustomerManagementComponent implements OnInit {
   customers: Customer[] = [];
   filteredCustomers: Customer[] = [];
-  searchTerm = '';
   isFormVisible = false;
   isEditing = false;
   editingId?: number;
@@ -32,26 +31,12 @@ export class CustomerManagementComponent implements OnInit {
     this.customerService.getCustomers().subscribe({
       next: (customers) => {
         this.customers = customers;
-        this.applyFilter();
+        this.filteredCustomers = [...customers];
       },
       error: () => {
         this.validationMessage = 'Unable to load customers.';
       }
     });
-  }
-
-  applyFilter(): void {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      this.filteredCustomers = [...this.customers];
-      return;
-    }
-
-    this.filteredCustomers = this.customers.filter((customer) =>
-      [customer.customer_code, customer.customer_name, customer.contact_person, customer.phone_number]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term))
-    );
   }
 
   openAddCustomer(): void {

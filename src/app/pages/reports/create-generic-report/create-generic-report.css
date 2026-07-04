@@ -1461,5 +1461,10 @@ select:focus {
   .signature-grid strong {
     background: transparent;
   }
+  .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Increase or decrease as needed */
+}
 }
 

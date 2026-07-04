@@ -43,27 +43,33 @@ async function searchSequence(req, res) {
 
     const result = await query(
       `
+        WITH report_rows AS (
+          SELECT DISTINCT ON (r.part_number, COALESCE(r.date_code, ''))
+            r.part_number,
+            COALESCE(r.date_code, '') AS date_code,
+            r.customer_id,
+            NULLIF(TRIM(r.customer_name), '') AS customer_name,
+            r.updated_at,
+            r.id AS report_id
+          FROM reports r
+          WHERE r.part_number IS NOT NULL
+          ORDER BY r.part_number, COALESCE(r.date_code, ''), r.updated_at DESC, r.id DESC
+        )
         SELECT
           pds.id,
-          customers.customer_id,
-          COALESCE(customers.customer_name, '') AS customer_name,
+          report_rows.customer_id,
+          report_rows.customer_name,
           pds.part_number,
           pds.date_code,
           pds.current_sequence,
           CONCAT('J', LPAD((COALESCE(pds.current_sequence, 0) + 1)::text, 3, '0')) AS next_available_sequence,
-          pds.updated_at
-        FROM part_datecode_sequences pds
-        LEFT JOIN (
-          SELECT
-            cp.part_number,
-            string_agg(DISTINCT c.customer_name, ', ') AS customer_name,
-            MIN(cp.customer_id) AS customer_id
-          FROM customer_parts cp
-          INNER JOIN customers c ON c.id = cp.customer_id
-          GROUP BY cp.part_number
-        ) customers ON customers.part_number = pds.part_number
+          COALESCE(report_rows.updated_at, pds.updated_at) AS updated_at
+        FROM report_rows
+        LEFT JOIN part_datecode_sequences pds
+          ON pds.part_number = report_rows.part_number
+         AND COALESCE(pds.date_code, '') = report_rows.date_code
         ${whereClause}
-        ORDER BY pds.part_number, pds.date_code
+        ORDER BY COALESCE(report_rows.customer_name, ''), report_rows.part_number, report_rows.date_code
       `,
       params
     );
@@ -186,25 +192,31 @@ async function updateSequence(req, res) {
     const row = updated.rows[0];
     const result = await query(
       `
+        WITH report_rows AS (
+          SELECT DISTINCT ON (r.part_number, COALESCE(r.date_code, ''))
+            r.part_number,
+            COALESCE(r.date_code, '') AS date_code,
+            r.customer_id,
+            NULLIF(TRIM(r.customer_name), '') AS customer_name,
+            r.updated_at,
+            r.id AS report_id
+          FROM reports r
+          WHERE r.part_number IS NOT NULL
+          ORDER BY r.part_number, COALESCE(r.date_code, ''), r.updated_at DESC, r.id DESC
+        )
         SELECT
           pds.id,
-          customers.customer_id,
-          COALESCE(customers.customer_name, '-') AS customer_name,
+          report_rows.customer_id,
+          report_rows.customer_name,
           pds.part_number,
           pds.date_code,
           pds.current_sequence,
           CONCAT('J', LPAD((COALESCE(pds.current_sequence, 0) + 1)::text, 3, '0')) AS next_available_sequence,
-          pds.updated_at
-        FROM part_datecode_sequences pds
-        LEFT JOIN (
-          SELECT
-            cp.part_number,
-            string_agg(DISTINCT c.customer_name, ', ') AS customer_name,
-            MIN(cp.customer_id) AS customer_id
-          FROM customer_parts cp
-          INNER JOIN customers c ON c.id = cp.customer_id
-          GROUP BY cp.part_number
-        ) customers ON customers.part_number = pds.part_number
+          COALESCE(report_rows.updated_at, pds.updated_at) AS updated_at
+        FROM report_rows
+        LEFT JOIN part_datecode_sequences pds
+          ON pds.part_number = report_rows.part_number
+         AND COALESCE(pds.date_code, '') = report_rows.date_code
         WHERE pds.id = $1
       `,
       [row.id]

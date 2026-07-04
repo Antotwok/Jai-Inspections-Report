@@ -1,7 +1,9 @@
 <main class="repository">
   <header class="repo-header">
     <div>
-      <p class="eyebrow">Report Repository</p>
+      <h1 style="color: #146348;">Report Repository</h1>
+      <p></p>
+      <p></p>
       <h1>Saved reports</h1>
     </div>
     <div class="header-status">
@@ -9,7 +11,7 @@
         <span class="status-label">System Status</span>
         <strong class="status-pill" [attr.data-status]="systemStatusType">{{ systemStatusMessage }}</strong>
       </div>
-      <a routerLink="/dashboard">Dashboard</a>
+      <a routerLink="/dashboard">Home</a>
     </div>
   </header>
 
@@ -48,7 +50,7 @@
       <tr *ngFor="let report of reports">
         <td>{{ report.report_no }}</td>
         <td>{{ report.customer_name }}</td>
-        <td>{{ report.part_number }}</td>
+        <td>{{ displayPartNumber(report) }}</td>
         <td>{{ displayDateCode(report) }}</td>
         <td>{{ report.report_type }}</td>
         <td>{{ displayReportDate(report) }}</td>

@@ -64,6 +64,16 @@ export class ReportRepositoryComponent implements OnInit {
     return report.date_code || report.report_json?.dateCode || report.report_json?.date_code || '-';
   }
 
+  displayPartNumber(report: StoredReport): string {
+    const customerFields = Array.isArray(report.report_json?.customerFields) ? report.report_json.customerFields : [];
+    const partField = customerFields.find((field: any) => {
+      const label = String(field?.label || '').toLowerCase();
+      return label.includes('part no') || label.includes('part number');
+    });
+
+    return report.part_number || report.report_json?.partNumber || report.report_json?.part_number || partField?.value || '-';
+  }
+
   displayReportDate(report: StoredReport): string {
     const value = report.report_date || report.report_json?.reportDate || report.report_json?.report_date || '';
     if (!value) return '-';
@@ -82,13 +92,22 @@ export class ReportRepositoryComponent implements OnInit {
       report.report_json?.itemReceiptDateTimePickerValue ||
       report.report_json?.itemReceiptDateTime ||
       report.report_json?.reportTime ||
-      report.report_json?.report_time ||
+      report.created_at ||
       report.updated_at ||
       '';
 
     if (!value) return '-';
 
     const trimmed = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return '-';
+    }
+
+    const isoTimeMatch = /^\d{4}-\d{2}-\d{2}[T\s](\d{2}):(\d{2})(?::(\d{2}))?/.exec(trimmed);
+    if (isoTimeMatch) {
+      return `${isoTimeMatch[1]}:${isoTimeMatch[2]}`;
+    }
+
     const hhmmMatch = /(\d{2}):(\d{2})(?::\d{2})?$/.exec(trimmed);
     if (hhmmMatch) return `${hhmmMatch[1]}:${hhmmMatch[2]}`;
 

@@ -63,6 +63,8 @@ interface GenericRtSettings {
 interface GenericRtDraft {
   customerFields: ReportField[];
   reportFields: ReportField[];
+    urlNumberDigits?: string;
+    urlNumberPrefix?: string;
   pages: GenericRtPage[];
   selectedReportPrefix?: string;
   customReportPrefix?: string;
@@ -98,7 +100,11 @@ interface GenericRtDraft {
 interface GenericRtHistoryState {
   customerFields: ReportField[];
   reportFields: ReportField[];
+  urlNumberDigits: string;
+  urlNumberPrefix?: string;
   pages: GenericRtPage[];
+
+
   reportNumberDigits: string;
   reportNumberPrefix?: string;
   issueDatePickerValue: string;
@@ -236,6 +242,19 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private redoStack: GenericRtHistoryState[] = [];
   private suppressHistoryCapture = false;
 
+  // URL No controls (used by template)
+  urlNumberPrefix = 'JIA / URL / '; // Default prefix for URL No.
+  urlNumberDigits = '';
+  urlValidationMessage = '';
+  urlConfirmMode: 'overwrite' | '' = '';
+
+  // Used by template and report payloads
+  selectedCustomerId = '';
+
+
+
+
+
   showPageBoundaries = false;
   layoutMode: 'edit' | 'preview' = 'edit';
   pageOrientation: 'portrait' | 'landscape' = 'portrait';
@@ -274,7 +293,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   settings: GenericRtSettings = this.loadSettings();
   customers: Customer[] = [];
   customerParts: CustomerPart[] = [];
-  selectedCustomerId = '';
   selectedPartId = '';
   selectedPartNumber = '';
   selectedDateCode = '';
@@ -291,6 +309,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   evaluatedByOptionsText = '';
   reviewedByOptionsText = '';
   private saveStatusTimer?: number;
+  existingReportToLoad: StoredReport | null = null;
+
 
   constructor(
     private customerService: CustomerService,
@@ -325,6 +345,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   reportFields: ReportField[] = [
     { label: '\u00A0Report No', value: '' },
     { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+    { label: '\u00A0URL No', value: '' }, // Added URL No field
     { label: '\u00A0Test Location', value: this.dropdownDefault('testLocation') },
     { label: '\u00A0Source', value: this.dropdownDefault('source') },
     { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
@@ -563,19 +584,42 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   addPage(): void {
     this.captureHistory();
+
     const lastPage = this.pages.at(-1);
     const lastRows = lastPage?.rows ?? [];
-    const previousVisibleIndex = this.previousVisibleRowIndex(lastRows);
-    const lastRow = previousVisibleIndex >= 0 ? lastRows[previousVisibleIndex] : undefined;
 
-    if (lastRow) {
-      this.pages.push({ rows: this.cloneRowGroup(lastRows, previousVisibleIndex) });
+    // Copy exact last rendered group from the previous page.
+    // If the last row belongs to a filmGroupId, copy the entire group (as separate rows)
+    // while preserving row contents/ordering.
+    if (lastRows.length) {
+      const lastIndex = lastRows.length - 1;
+      const lastRow = lastRows[lastIndex];
+
+      if (lastRow?.filmGroupId) {
+        const groupId = lastRow.filmGroupId;
+        const groupRows = lastRows.filter((r) => r.filmGroupId === groupId);
+
+        // Preserve exact structure, but remove selection flag.
+        const clonedGroup = groupRows.map((r) => {
+          const cloned = this.cloneRow(r);
+          cloned.selected = false;
+          return cloned;
+        });
+
+        this.pages.push({ rows: clonedGroup.length ? clonedGroup : [this.createRow(this.generatedDescription(), '')] });
+      } else {
+        const clonedLast = this.cloneRow(lastRow);
+        clonedLast.selected = false;
+        this.pages.push({ rows: [clonedLast] });
+      }
     } else {
       this.pages.push({ rows: [this.createRow(this.generatedDescription(), '')] });
     }
+
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
+
 
   removePage(index: number): void {
     if (this.pages.length === 1) return;
@@ -1078,6 +1122,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reportFields = draft.reportFields ?? this.reportFields;
     this.normalizeSelectableReportFields();
     this.pages = draft.pages?.length ? draft.pages : this.pages;
+    this.urlNumberDigits = draft.urlNumberDigits ?? this.urlNumberDigits; // Apply from draft
+    this.urlNumberPrefix = draft.urlNumberPrefix ?? this.urlNumberPrefix; // Apply from draft
     this.reportNumberDigits = draft.reportNumberDigits ?? this.reportNumberDigits;
     this.density = draft.density ?? this.density;
     this.sensitivity = draft.sensitivity ?? this.sensitivity;
@@ -1109,6 +1155,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.lowerDetailsFontSize = this.normalizeFontSize(draft.lowerDetailsFontSize, 10.5);
     this.syncRowResultsFromObservations();
     this.hydrateReportNumber();
+    this.hydrateUrlNumber(); // New method to hydrate URL No.
     this.issueDatePickerValue = this.parseDisplayDate(this.fieldValue('Issue Date')) || this.todayIso();
     this.otherFieldLabels.clear();
     this.suppressHistoryCapture = false;
@@ -1176,6 +1223,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const selectedCustomer = this.getSelectedCustomer();
     const selectedPart = this.getSelectedPart();
     const reportNo = this.formatReportNumber();
+    const urlNo = this.fieldValue('URL No'); // Get URL No.
     const rows = this.pages.flatMap((page, pageIndex) =>
       page.rows.map((row, rowIndex) => ({
         row_order: pageIndex * 1000 + rowIndex,
@@ -1192,6 +1240,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return {
       report_type: reportType,
       report_no: reportNo,
+      url_no: urlNo, // Add URL No. to payload
       customer_id: selectedCustomer ? Number(selectedCustomer.id) : (this.selectedCustomerId ? Number(this.selectedCustomerId) : null),
       customer_name: selectedCustomer?.customer_name || this.extractCustomerNameFromField(),
       part_id: selectedPart ? Number(selectedPart.id) : (this.selectedPartId ? Number(this.selectedPartId) : null),
@@ -1208,6 +1257,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       report_json: {
         ...snapshot,
         customerId: selectedCustomer ? Number(selectedCustomer.id) : (this.selectedCustomerId ? Number(this.selectedCustomerId) : null),
+        urlNo: urlNo, // Add URL No. to report_json
         customerName: selectedCustomer?.customer_name || this.extractCustomerNameFromField(),
         partId: selectedPart ? Number(selectedPart.id) : (this.selectedPartId ? Number(this.selectedPartId) : null),
         partNumber: selectedPart?.part_number || this.fieldValue('Part No *'),
@@ -1231,6 +1281,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.setFieldValue('Report No', this.formatReportNumber(code, nextDigits));
   }
 
+  private updateUrlNumberForCustomer(customer: Customer): void {
+    const current = Number(customer.current_url_number || 0);
+    const nextNumber = Number.isFinite(current) ? current + 1 : 1;
+    const nextDigits = String(nextNumber).padStart(4, '0'); // Assuming 4 digits for URL No.
+    this.urlNumberDigits = nextDigits;
+    this.updateUrlNumber();
+  }
+
   private async incrementCustomerReportNumber(): Promise<void> {
     const customerId = Number(this.selectedCustomerId);
     if (!customerId) return;
@@ -1239,6 +1297,29 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     if (!customer) return;
 
     const nextCurrent = Number(this.reportNumberDigits || 0);
+    try {
+      await firstValueFrom(
+        this.customerService.updateCustomer(customerId, {
+          ...customer,
+          customer_code: customer.customer_code,
+          customer_name: customer.customer_name,
+          current_report_number: nextCurrent
+        })
+      );
+      customer.current_report_number = nextCurrent;
+    } catch (error) {
+      console.error('[customer:report-number:update:error]', error);
+    }
+  }
+
+  private async incrementCustomerUrlNumber(): Promise<void> {
+    const customerId = Number(this.selectedCustomerId);
+    if (!customerId) return;
+
+    const customer = this.customers.find((item) => Number(item.id) === customerId);
+    if (!customer) return;
+
+    const nextCurrent = Number(this.urlNumberDigits || 0);
     try {
       await firstValueFrom(
         this.customerService.updateCustomer(customerId, {
@@ -1291,6 +1372,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.startingSequence = 0;
     this.combinationSaveMessage = '';
     this.availableReports = [];
+    this.urlNumberDigits = ''; // Reset URL number
     this.reportNumberDigits = '';
     this.issueDatePickerValue = this.todayIso();
     this.examinationDatePickerValue = this.todayIso();
@@ -1319,6 +1401,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reportFields = [
       { label: 'Report No', value: '' },
       { label: 'Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+      { label: 'URL No', value: '' }, // Reset URL No field
       { label: 'Test Location', value: this.dropdownDefault('testLocation') },
       { label: 'ource', value: this.dropdownDefault('source') },
       { label: 'Source Strength', value: this.settings.defaultValues['Source Strength'] },
@@ -1351,6 +1434,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       reportFields: structuredClone(this.reportFields),
       pages: structuredClone(this.pages),
       reportNumberDigits: this.reportNumberDigits,
+      urlNumberDigits: this.urlNumberDigits, // Add to snapshot
+      urlNumberPrefix: this.urlNumberPrefix, // Add to snapshot
       issueDatePickerValue: this.issueDatePickerValue,
       examinationDatePickerValue: this.examinationDatePickerValue,
       itemReceiptDateTimePickerValue: this.itemReceiptDateTimePickerValue,
@@ -1386,6 +1471,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reportFields = structuredClone(snapshot.reportFields);
     this.pages = structuredClone(snapshot.pages);
     this.reportNumberDigits = snapshot.reportNumberDigits;
+    this.urlNumberDigits = snapshot.urlNumberDigits ?? '';
+    this.urlNumberPrefix = snapshot.urlNumberPrefix ?? this.urlNumberPrefix;
+
     this.issueDatePickerValue = snapshot.issueDatePickerValue;
     this.examinationDatePickerValue = snapshot.examinationDatePickerValue;
     this.itemReceiptDateTimePickerValue = snapshot.itemReceiptDateTimePickerValue;
@@ -1493,6 +1581,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   getFieldControlType(label: string): string {
+    if (label === 'URL No') {
+      return 'urlNumber';
+    }
+
     if (label === 'Report No') return 'reportNumber';
     if (label === 'Issue Date') return 'issueDate';
     if (this.dropdownKeyForLabel(label)) return 'dropdown';
@@ -1543,6 +1635,25 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reportNumberDigits = value;
     const suffix = this.reportNumberSuffix();
     this.setFieldValue('Report No', suffix ? `${prefix}${value} / ${suffix}`.trim() : `${prefix}${value}`.trim());
+  }
+
+  onUrlDigitsChange(value: string): void {
+    this.captureHistory();
+    const prefix = this.urlNumberPrefix || 'JIA / URL / ';
+    this.urlNumberDigits = value.startsWith(prefix) ? value.slice(prefix.length) : value;
+    this.updateUrlNumber();
+    this.clearRedoStack();
+  }
+
+  updateUrlNumber(): void {
+    const prefix = this.urlNumberPrefix || 'JIA / URL / ';
+    let value = this.urlNumberDigits || '';
+    if (value.startsWith(prefix)) {
+      value = value.slice(prefix.length);
+    }
+    this.urlNumberDigits = value;
+    this.setFieldValue('URL No', `${prefix}${value}`.trim());
+    void this.validateUrlNumber(this.fieldValue('URL No')); // Validate on update
   }
 
   updateDate(_label: 'Issue Date', isoDate: string): void {
@@ -1637,6 +1748,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.sequenceStatusMessage = '';
     this.showStartingSequence = false;
     this.combinationDialogMode = '';
+    this.urlValidationMessage = '';
     this.combinationConfirmMode = '';
     this.combinationSaveMessage = '';
     this.reportNumberDigits = '';
@@ -1644,6 +1756,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     this.setFieldValue('Customer Name & Address *', '');
     this.customerFields[0].value = '';
+    this.setFieldValue('URL No', ''); // Reset URL No field
     this.setFieldValue('Material', '');
     this.setFieldValue('Size & Thickness *', '');
     this.setFieldValue('Area Tested *', this.dropdownDefault('areaTested'));
@@ -1664,6 +1777,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       const customerText = [customer.customer_name, customer.customer_address].filter(Boolean).join('\n');
       this.setFieldValue('Customer Name & Address *', customerText);
       this.customerFields[0].value = customerText;
+      this.updateUrlNumberForCustomer(customer); // Call for URL No.
       this.setFieldValue('Material', '');
       this.updateReportNumberForCustomer(customer);
     }
@@ -2092,6 +2206,39 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     void this.saveSettingsToServer();
     this.applyDefaultValuesToBlankFields();
   }
+
+  private async validateUrlNumber(urlNo: string): Promise<void> {
+    this.urlValidationMessage = '';
+    this.urlConfirmMode = '';
+    this.existingReportToLoad = null;
+
+    const trimmedUrlNo = urlNo.trim();
+    if (!trimmedUrlNo) return;
+
+    const customerId = this.selectedCustomerId;
+    if (!customerId) {
+      this.urlValidationMessage = 'Select a customer first to validate URL No.';
+      return;
+    }
+
+    try {
+      const existingReports = await firstValueFrom(this.reportService.listReports({
+        reportType: 'NON_NABL', // Assuming NABL reports are also NON_NABL type for this context
+        customerId: Number(customerId),
+        urlNo: trimmedUrlNo,
+      }));
+
+      if (existingReports.length > 0) {
+        this.existingReportToLoad = existingReports[0];
+        this.urlValidationMessage = `URL No. "${trimmedUrlNo}" already exists for this customer.`;
+        this.urlConfirmMode = 'overwrite';
+      }
+    } catch (error: any) {
+      console.error('[report:url-validation:error]', error);
+      this.urlValidationMessage = error?.error?.message || error?.message || 'Failed to validate URL No.';
+    }
+  }
+
 
   private setAppStatus(message: string, type: 'ready' | 'loaded' | 'saved' | 'updated' | 'deleted' | 'warning' | 'error'): void {
     this.appStatusMessage = message;
@@ -2785,6 +2932,23 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.updateReportNumber();
   }
 
+  private hydrateUrlNumber(): void {
+    const urlNumber = this.fieldValue('URL No');
+    const prefix = this.urlNumberPrefix || 'JIA / URL / ';
+    const value = urlNumber.startsWith(prefix) ? urlNumber.slice(prefix.length) : urlNumber;
+    this.urlNumberDigits = this.urlNumberDigits || value || '';
+    this.updateUrlNumber();
+  }
+
+  cancelUrlOverwrite(): void {
+    this.urlConfirmMode = '';
+  }
+
+  openUrlOverwriteDialog(): void {
+    this.urlConfirmMode = 'overwrite';
+  }
+
+
   private validateReport(): boolean {
     const requiredFields = [
       'Customer Name & Address *',
@@ -2793,6 +2957,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       'Test Method *',
       'Acceptance Std. *',
       'Report Date',
+      'URL No', // URL No is now a required field
       'Test Location'
     ];
 
@@ -2808,6 +2973,21 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       return false;
     }
 
+    if (this.urlConfirmMode === 'overwrite') {
+      this.validationMessage = 'URL No. already exists. Please overwrite or change the URL No.';
+      return false;
+    }
+
+    return true;
+  }
+
+  confirmUrlOverwrite(): boolean {
+    if (this.existingReportToLoad) {
+      void this.loadReportFromServer(this.existingReportToLoad.id);
+      this.urlConfirmMode = '';
+      this.urlValidationMessage = '';
+      this.existingReportToLoad = null;
+    }
     this.validationMessage = '';
     return true;
   }
@@ -2825,6 +3005,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       ['Area Tested *', this.dropdownDefault('areaTested')],
       ['Exposure Technique', this.dropdownDefault('exposureTechniques')]
     ]);
+
+    // Add URL No. to default map if it's empty
+    if (!this.fieldValue('URL No').trim()) {
+      const customer = this.getSelectedCustomer();
+      if (customer) {
+        this.updateUrlNumberForCustomer(customer);
+      }
+    }
 
     defaultMap.forEach((value, label) => {
       if (!this.fieldValue(label).trim()) {
@@ -2851,5 +3039,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     return suffix ? `JIA / ${code} / ${nextDigits} / ${suffix}` : `JIA / ${code} / ${nextDigits}`;
+  }
+}
+
+declare module "../../../services/customer.service" {
+  interface Customer {
+    current_url_number?: number;
   }
 }

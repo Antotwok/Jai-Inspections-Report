@@ -1,21 +1,16 @@
 <main class="customer-page">
   <section class="hero">
     <div>
-      <p class="eyebrow">PostgreSQL customer workspace</p>
-      <h1>Customer Management</h1>
+      <h1 style="color: #146348;">PostgreSQL customer workspace</h1>
+    <p></p>
+
+      <h2>Customer Management</h2>
       <p>Manage customers and prepare the data foundation for future customer-part driven reports.</p>
     </div>
     <div class="hero-actions">
       <a routerLink="/" class="secondary-link">Home</a>
       <button type="button" class="primary" (click)="openAddCustomer()">Add Customer</button>
     </div>
-  </section>
-
-  <section class="panel search-panel">
-    <label>
-      <span>Search Customer</span>
-      <input type="text" [(ngModel)]="searchTerm" (input)="applyFilter()" placeholder="Search by code, name, contact, or phone" />
-    </label>
   </section>
 
   <section class="panel form-panel" *ngIf="isFormVisible">

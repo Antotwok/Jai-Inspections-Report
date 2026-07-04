@@ -2,7 +2,7 @@
   <header class="generic-header">
     <div>
       <p class="eyebrow">Non-NABL RT Report</p>
-      <h1>Radiography Test Report</h1>
+      <h1>Non-NABL RT Report</h1>
     </div>
     <div class="header-status">
       <div class="status-block">
@@ -60,6 +60,24 @@
               (ngModelChange)="onDateCodeSelection($event)"
             />
           </label>
+          <label>
+            URL No
+            <input
+              [(ngModel)]="urlNumberDigits"
+              name="urlNumberDigits"
+              placeholder="Enter URL number"
+              (ngModelChange)="onUrlDigitsChange($event)"
+            />
+          </label>
+          <p class="validation-message" *ngIf="urlValidationMessage">{{ urlValidationMessage }}</p>
+          <button
+            type="button"
+            class="primary-action"
+            *ngIf="urlConfirmMode === 'overwrite'"
+            (click)="openUrlOverwriteDialog()"
+          >
+            Overwrite Existing Report
+          </button>
           <div class="autocomplete-list" *ngIf="dateCodeSearchText.trim()">
             <button type="button" *ngFor="let dateCode of filteredDateCodeOptions" (click)="dateCodeSearchText = dateCode; onDateCodeSelection(dateCode)">
               {{ dateCode }}
@@ -203,6 +221,11 @@
                     </ng-container>
                   </ng-template>
                   <ng-template #customerLabelText>
+                    <ng-container *ngIf="pair.customer && pair.customer.label === 'URL No'; else customerLabelInput">
+                      <span class="wrapped-label">URL No</span>
+                    </ng-container>
+                  </ng-template>
+                  <ng-template #customerLabelInput>
                     <input
                       *ngIf="pair.customer"
                       type="text"
@@ -317,6 +340,23 @@
                   <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
 
                   <ng-template #reportDateOrText>
+                    <div
+                      class="report-number-control"
+                      *ngIf="getFieldControlType(pair.report.label) === 'urlNumber'; else issueDateOrText"
+                      [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
+                    >
+                      <input
+                        class="report-prefix"
+                        type="text"
+                        [ngModel]="urlNumberPrefix"
+                        name="urlNumberPrefix"
+                        (ngModelChange)="urlNumberPrefix = $event; updateUrlNumber()"
+                      />
+                      <input type="text" [ngModel]="urlNumberDigits" name="urlNumberDigits" (ngModelChange)="onUrlDigitsChange($event)" />
+                    </div>
+                    <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'urlNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
+
+                    <ng-template #issueDateOrText>
                     <ng-container *ngIf="getFieldControlType(pair.report.label) === 'issueDate'; else plainReportTextarea">
                       <input
                         class="date-picker"
@@ -328,6 +368,7 @@
                       />
                     </ng-container>
                     <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'issueDate'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
+                    </ng-template>
                   </ng-template>
 
                   <ng-template #plainReportTextarea>
@@ -407,6 +448,10 @@
               <div>
                 <strong>Report Date</strong>
                 <span>{{ fieldValue('Report Date') }}</span>
+              </div>
+              <div>
+                <strong>URL No</strong>
+                <span>{{ fieldValue('URL No') }}</span>
               </div>
             </section>
           </ng-template>
@@ -721,7 +766,7 @@
     </section>
   </div>
 
-  <div class="dialog-backdrop" *ngIf="confirmMode" role="presentation" (click)="closeConfirmDialog()">
+  <div class="dialog-backdrop" *ngIf="confirmMode || urlConfirmMode === 'overwrite'" role="presentation" (click)="closeConfirmDialog(); cancelUrlOverwrite()">
     <section class="draft-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle" (click)="$event.stopPropagation()">
       <div class="dialog-header">
         <p class="eyebrow">{{ confirmMode === 'reset' ? 'Reset report' : confirmMode === 'update' ? 'Update record' : 'Delete draft' }}</p>
@@ -731,9 +776,9 @@
       <p class="dialog-copy">{{ confirmDialogCopy }}</p>
 
       <div class="dialog-actions">
-        <button type="button" (click)="closeConfirmDialog()">Cancel</button>
-        <button type="button" class="primary-action" (click)="confirmAction()">
-          {{ confirmMode === 'reset' ? 'Yes, Reset' : confirmMode === 'update' ? 'Yes, Update' : 'Yes, Delete' }}
+        <button type="button" (click)="closeConfirmDialog(); cancelUrlOverwrite()">Cancel</button>
+        <button type="button" class="primary-action" (click)="confirmMode ? confirmAction() : confirmUrlOverwrite()">
+          {{ confirmMode ? (confirmMode === 'reset' ? 'Yes, Reset' : confirmMode === 'update' ? 'Yes, Update' : 'Yes, Delete') : 'Yes, Overwrite' }}
         </button>
       </div>
     </section>

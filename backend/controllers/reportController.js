@@ -129,6 +129,46 @@ function extractDateCode(reportJson) {
   );
 }
 
+function extractPartNumberFromReportRow(report) {
+  const json = report?.report_json && typeof report.report_json === 'object' ? report.report_json : {};
+  const customerFields = Array.isArray(json.customerFields) ? json.customerFields : [];
+  const partField = customerFields.find((field) => {
+    const label = String(field?.label || '').toLowerCase();
+    return label.includes('part no') || label.includes('part number');
+  });
+
+  return sanitizeText(
+    report?.part_number ||
+    json.partNumber ||
+    json.part_number ||
+    partField?.value ||
+    null
+  );
+}
+
+function extractCustomerNameFromReportRow(report) {
+  const json = report?.report_json && typeof report.report_json === 'object' ? report.report_json : {};
+  return sanitizeText(
+    report?.customer_name ||
+    json.customerName ||
+    json.customer_name ||
+    extractCustomerName(json) ||
+    null
+  );
+}
+
+function normalizeReportRow(report) {
+  if (!report || typeof report !== 'object') return report;
+  return {
+    ...report,
+    customer_name: extractCustomerNameFromReportRow(report),
+    part_number: extractPartNumberFromReportRow(report),
+    date_code: sanitizeText(report.date_code || report.report_json?.dateCode || report.report_json?.date_code || null),
+    report_date: report.report_date || report.report_json?.reportDate || report.report_json?.report_date || null,
+    inspection_date: report.inspection_date || report.report_json?.inspectionDate || report.report_json?.inspection_date || null
+  };
+}
+
 function extractJobNumbers(reportJson, reportRows) {
   const values = [];
   const pushMatches = (text) => {
@@ -375,7 +415,7 @@ async function listReports(req, res) {
     );
 
     reportLog('list.success', { count: result.rowCount });
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeReportRow));
   } catch (error) {
     console.error('Failed to list reports:', error);
     res.status(500).json({
@@ -423,7 +463,7 @@ async function getReportById(req, res) {
     }
 
     reportLog('get.success', { reportId, reportType: result.rows[0]?.report_type });
-    res.json(result.rows[0]);
+    res.json(normalizeReportRow(result.rows[0]));
   } catch (error) {
     console.error('Failed to get report:', error);
     res.status(500).json({
@@ -528,7 +568,7 @@ async function createReport(req, res) {
       await incrementNablReportCounter();
     }
     reportLog('create.success', { reportId: inserted.rows[0].id, reportType });
-    res.status(201).json({ ...inserted.rows[0], report_rows: reportRows });
+    res.status(201).json({ ...normalizeReportRow(inserted.rows[0]), report_rows: reportRows });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Failed to create report:', error);
@@ -650,7 +690,7 @@ async function updateReport(req, res) {
     }
     await client.query('COMMIT');
     reportLog('update.success', { reportId, reportType });
-    res.json({ ...updated.rows[0], report_rows: reportRows });
+    res.json({ ...normalizeReportRow(updated.rows[0]), report_rows: reportRows });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Failed to update report:', error);

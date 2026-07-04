@@ -2,8 +2,9 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { Customer, CustomerService, PartDateCodeSequenceRecord } from '../../services/customer.service';
+import { ReportService, StoredReport } from '../../services/report.service';
 
 type SortKey = 'customer_name' | 'part_number' | 'date_code' | 'current_sequence' | 'updated_at';
 type SortDirection = 'asc' | 'desc';
@@ -18,12 +19,13 @@ type SortDirection = 'asc' | 'desc';
 })
 export class SequenceSearchComponent implements OnInit, OnDestroy {
   customers: Customer[] = [];
+  private readonly customerNameById = new Map<number, string>();
+  private readonly reportCustomerByCombination = new Map<string, string>();
   records: PartDateCodeSequenceRecord[] = [];
   filteredRecords: PartDateCodeSequenceRecord[] = [];
   message = '';
   loading = false;
 
-  customerSearch = '';
   partSearch = '';
   dateCodeSearch = '';
   sortKey: SortKey = 'updated_at';
@@ -39,6 +41,7 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
 
   constructor(
     private customerService: CustomerService,
+    private reportService: ReportService,
     private datePipe: DatePipe
   ) {
     this.refreshSubscription = this.customerService.sequenceRefresh$.subscribe(() => {
@@ -46,11 +49,20 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.customerService.getCustomers().subscribe({
-      next: (customers) => (this.customers = customers),
+      next: (customers) => {
+        this.customers = customers;
+        this.customerNameById.clear();
+        customers.forEach((customer) => {
+          if (customer.id) {
+            this.customerNameById.set(Number(customer.id), customer.customer_name?.trim() || '');
+          }
+        });
+      },
       error: () => (this.customers = [])
     });
+    await this.loadReportCustomers();
     this.loadSequences();
   }
 
@@ -74,16 +86,11 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
     return this.filteredRecords.length;
   }
 
-  searchChanged(): void {
-    this.applyClientFilters();
-  }
-
   onFilterInput(): void {
     this.applyClientFilters();
   }
 
   clearFilters(): void {
-    this.customerSearch = '';
     this.partSearch = '';
     this.dateCodeSearch = '';
     this.applyClientFilters();
@@ -180,7 +187,47 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
   }
 
   customerLabel(row: PartDateCodeSequenceRecord): string {
-    return row.customer_name?.trim() || this.customers.find((customer) => customer.id === row.customer_id)?.customer_name?.trim() || 'No company found';
+    const customerId = Number(row.customer_id);
+    const partNumber = this.normalizePartNumber(row.part_number);
+    const dateCode = this.normalizeDateCode(row.date_code);
+    return (
+      row.customer_name?.trim() ||
+      this.reportCustomerByCombination.get(this.combinationKey(partNumber, dateCode)) ||
+      this.reportCustomerByCombination.get(this.combinationKey(partNumber, '')) ||
+      (Number.isFinite(customerId) ? this.customerNameById.get(customerId) : '') ||
+      this.customers.find((customer) => Number(customer.id) === customerId)?.customer_name?.trim() ||
+      '-'
+    );
+  }
+
+  private async loadReportCustomers(): Promise<void> {
+    try {
+      const reports = await firstValueFrom(this.reportService.listReports({}));
+      this.reportCustomerByCombination.clear();
+
+      const orderedReports = [...reports].sort((a: StoredReport, b: StoredReport) => {
+        const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+        const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+        return aTime - bTime;
+      });
+
+      for (const report of orderedReports) {
+        const partNumber = this.normalizePartNumber(report.part_number);
+        const dateCode = this.normalizeDateCode(report.date_code || report.report_json?.dateCode || report.report_json?.date_code);
+        const customerName = String(report.customer_name || '').trim();
+        if (partNumber && customerName) {
+          this.reportCustomerByCombination.set(this.combinationKey(partNumber, dateCode), customerName);
+          if (dateCode) {
+            const fallbackKey = this.combinationKey(partNumber, '');
+            if (!this.reportCustomerByCombination.has(fallbackKey)) {
+              this.reportCustomerByCombination.set(fallbackKey, customerName);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[sequence-search:report-customers:error]', error);
+    }
   }
 
   private loadSequences(): void {
@@ -202,16 +249,13 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
   }
 
   private applyClientFilters(): void {
-    const customerTerm = this.normalizeSearch(this.customerSearch);
     const partTerm = this.normalizeSearch(this.partSearch);
     const dateTerm = this.normalizeSearch(this.dateCodeSearch);
 
     const filtered = this.records.filter((row) => {
-      const customer = this.normalizeSearch(this.customerLabel(row));
       const part = this.normalizeSearch(row.part_number);
       const dateCode = this.normalizeSearch(row.date_code);
       return (
-        (!customerTerm || customer.includes(customerTerm)) &&
         (!partTerm || part.includes(partTerm)) &&
         (!dateTerm || dateCode.includes(dateTerm))
       );
@@ -257,6 +301,25 @@ export class SequenceSearchComponent implements OnInit, OnDestroy {
     return String(value ?? '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '');
+  }
+
+  private normalizePartNumber(value: string | number | null | undefined): string {
+    return String(value ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .replace(/[^A-Z0-9/-]+/g, '');
+  }
+
+  private normalizeDateCode(value: string | number | null | undefined): string {
+    return String(value ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '');
+  }
+
+  private combinationKey(partNumber: string, dateCode: string): string {
+    return `${partNumber}::${dateCode}`;
   }
 
   private replaceRecord(updated: PartDateCodeSequenceRecord): void {
