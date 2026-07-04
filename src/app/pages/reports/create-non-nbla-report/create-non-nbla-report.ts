@@ -345,7 +345,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   reportFields: ReportField[] = [
     { label: '\u00A0Report No', value: '' },
     { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
-    { label: '\u00A0URL No', value: '' }, // Added URL No field
     { label: '\u00A0Test Location', value: this.dropdownDefault('testLocation') },
     { label: '\u00A0Source', value: this.dropdownDefault('source') },
     { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
@@ -1401,7 +1400,6 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reportFields = [
       { label: 'Report No', value: '' },
       { label: 'Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
-      { label: 'URL No', value: '' }, // Reset URL No field
       { label: 'Test Location', value: this.dropdownDefault('testLocation') },
       { label: 'ource', value: this.dropdownDefault('source') },
       { label: 'Source Strength', value: this.settings.defaultValues['Source Strength'] },
