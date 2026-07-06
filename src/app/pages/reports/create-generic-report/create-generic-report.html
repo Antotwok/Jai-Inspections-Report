@@ -1,4 +1,4 @@
-<main class="generic-shell">
+<main class="generic-shell" style="font-weight: 700;">
   <header class="generic-header">
     <div>
       <p class="eyebrow">NABL RT Report</p>
@@ -46,7 +46,7 @@
       Lower details
       <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
     </label>
-      <!-- <div class="mode-switch" role="group" aria-label="Layout mode">
+      <div class="mode-switch" role="group" aria-label="Layout mode">
         <button type="button" [class.active]="layoutMode === 'edit'" (click)="setLayoutMode('edit')">Edit</button>
         <button type="button" [class.active]="layoutMode === 'preview'" (click)="setLayoutMode('preview')">Preview</button>
       </div> -->
@@ -220,7 +220,7 @@
         </button>
         <button type="button" (click)="addRow(pageIndex)">Add Row</button>
       </div>
-      <div class="page-badge" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">Page {{ pageIndex + 1 }}</div>
+      <!-- <div class="page-badge" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">Page {{ pageIndex + 1 }}</div> -->
 
       <header class="jia-letterhead">
         <img src="/report-assets/generic-rt-letterhead.jpg" alt="Jai Inspection Agencies LLP letterhead" />
@@ -578,7 +578,7 @@
         <span><input type="text" [(ngModel)]="footerFirstIssueText" name="footerFirstIssueText" /> <input type="text" [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
       </footer>
 
-        <div class="page-boundary-overlay" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">
+       <!--  <div class="page-boundary-overlay" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">
           <div
             class="page-overflow-zone"
             *ngIf="pageBoundaryState(pageIndex).hasOverflow"
@@ -594,7 +594,7 @@
               <span>End of Page {{ boundary.pageNumber }}</span>
             </div>
           </ng-container>
-        </div>
+        </div> -->
     </article>
   </section>
 

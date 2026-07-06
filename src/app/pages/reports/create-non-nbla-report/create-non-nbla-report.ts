@@ -345,6 +345,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   reportFields: ReportField[] = [
     { label: '\u00A0Report No', value: '' },
     { label: '\u00A0Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+    //{ label: '\u00A0URL No', value: '' }, // Added URL No field
     { label: '\u00A0Test Location', value: this.dropdownDefault('testLocation') },
     { label: '\u00A0Source', value: this.dropdownDefault('source') },
     { label: '\u00A0Source Strength', value: this.settings.defaultValues['Source Strength'] },
@@ -373,9 +374,9 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   footerFormatNo = 'Format No : JIA / F /010, , REV 01';
   footerFirstIssue = 'First Issue : 26-11-2025';
   reportNumberPrefix = 'JIA / ';
-  densityLabel = 'Density :';
-  sensitivityLabel = 'Sensitivity :';
-  remarksLabel = 'Remarks :';
+  densityLabel = ' Density ';
+  sensitivityLabel = ' Sensitivity ';
+  remarksLabel = ' Remarks';
   abbreviationLabel = 'ABBREVIATION :';
   endOfReportLabel = '****   End of Report   ****';
   footerPageLabelText = 'Page';
@@ -1387,7 +1388,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reviewedBy = this.dropdownDefault('reviewedBy');
     this.pages = [{ rows: [this.createRow(this.generatedDescription(), '')] }];
     this.customerFields = [
-      { label: '\u00A0Customer Name & \u00A0Address *', value: '' },
+      { label: '\u00A0 \u00A0 Customer Name & \u00A0Address *', value: '' },
       { label: '\u00A0Material', value: '' },
       { label: '\u00A0Size & Thickness *', value: '' },
       { label: '\u00A0Area Tested *', value: this.dropdownDefault('areaTested') },
@@ -1400,6 +1401,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.reportFields = [
       { label: 'Report No', value: '' },
       { label: 'Report Date', value: this.formatDisplayDate(this.issueDatePickerValue) },
+      { label: 'URL No', value: '' }, // Reset URL No field
       { label: 'Test Location', value: this.dropdownDefault('testLocation') },
       { label: 'ource', value: this.dropdownDefault('source') },
       { label: 'Source Strength', value: this.settings.defaultValues['Source Strength'] },
@@ -2475,7 +2477,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   private createRow(description: string, segment: string): GenericRtRow {
     return {
       description,
-      thickness: 'Multiple',
+      thickness: '',
       segment,
       filmSize: '4" x 12"',
       observations: 'N S D',
@@ -2769,7 +2771,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         },
         reviewedBy: {
           label: 'Reviewed By',
-          options: [ 'M Samson', 'Ganeshan', 'Rajendran',' '],
+          options: [ 'Viola', 'AJA Durai Raj',' '],
           defaultValue: ' '
         }
       },

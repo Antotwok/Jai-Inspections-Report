@@ -46,6 +46,20 @@
   min-height: 100vh;
 }
 
+.generic-shell,
+.generic-shell h1,
+.generic-shell h2,
+.generic-shell p,
+.generic-shell label,
+.generic-shell span,
+.generic-shell a,
+.generic-shell button,
+.generic-shell input,
+.generic-shell select,
+.generic-shell textarea {
+  font-weight: 700 !important;
+}
+
 .report-workspace {
   display: grid;
   grid-template-columns: minmax(320px, 30%) minmax(0, 70%);
@@ -784,6 +798,7 @@ button:disabled {
   flex-direction: column;
   border-left: 1px solid #333;
   border-right: 1px solid #333;
+  border-bottom: 1px solid #333;
   background: #fff;
 }
 
@@ -963,7 +978,7 @@ select:focus {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  border-bottom: 1px solid #333; /* Re-added: The main table should always have its own bottom border */
+  border-bottom: 1px solid #333;
   font-size: var(--lower-details-font-size, 10.5px);
 }
 
@@ -973,6 +988,15 @@ select:focus {
   padding: 0;
   text-align: center;
   vertical-align: middle;
+}
+
+.rt-table tbody tr:last-child > td,
+.rt-table tbody tr:last-child > th {
+  border-bottom: 1px solid #333;
+}
+
+.rt-table tbody tr:last-child > td {
+  border-bottom: 1px solid #333 !important;
 }
 
 .rt-table th {
@@ -1108,7 +1132,7 @@ select:focus {
   flex: 1 1 auto;
   min-height: 0;
   height: 0;
-  border-bottom: 0;
+  border-bottom: 1px solid #333;
   background: transparent;
 }
 
@@ -1710,7 +1734,7 @@ select:focus {
     display: block !important;
     flex: 1 1 auto;
     min-height: 0;
-    border-bottom: none; /* Explicitly removed in print styles too */
+    border-bottom: 1px solid #333;
     background: #fff;
   }
 

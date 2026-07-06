@@ -46,6 +46,20 @@
   min-height: 100vh;
 }
 
+.generic-shell,
+.generic-shell h1,
+.generic-shell h2,
+.generic-shell p,
+.generic-shell label,
+.generic-shell span,
+.generic-shell a,
+.generic-shell button,
+.generic-shell input,
+.generic-shell select,
+.generic-shell textarea {
+  font-weight: 700 !important;
+}
+
 /* ── App header ── */
 .generic-header {
   display: flex;
@@ -1465,6 +1479,6 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 12px; /* Increase or decrease as needed */
-}
+}     
 }
 
