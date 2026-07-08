@@ -82,6 +82,8 @@
 .preview-panel {
   min-width: 0;
   position: relative;
+  box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .control-card {
@@ -540,6 +542,7 @@ button:disabled {
   display: grid;
   gap: 28px;
   overflow: visible;
+  overflow-x: clip;
   padding: 0;
   transform: scale(var(--preview-zoom));
   transform-origin: top right;
@@ -563,6 +566,7 @@ button:disabled {
   box-shadow: var(--shadow-lg);
   font: 10.5px/1.18 Arial, sans-serif;
   padding: 10mm 12.5mm 42mm; /* Adjusted bottom padding to make space for fixed footer */
+  overflow-x: clip;
 }
 
 .report-stack.page-landscape .rt-page {
@@ -605,41 +609,63 @@ button:disabled {
 }
 
 /* ── Page edit tools (floated right) ── */
-.page-edit-tools {
-  position: absolute;
-  top: 5mm;
-  right: -46mm;
-  display: grid;
-  gap: 6px;
-  width: 40mm;
-  color: var(--muted);
-  font: 700 10px/1.2 var(--font);
-}
-
-.page-side-actions {
+.page-action-floater {
   position: absolute;
   top: 50%;
-  right: -46mm;
+  right: -8mm;
+  transform: translateY(-50%);
+  z-index: 20;
+}
+
+.page-action-trigger {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(12, 94, 74, 0.22);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-md);
+  color: var(--brand-dark);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.page-action-trigger.open {
+  background: var(--brand-light);
+  border-color: var(--brand-mid);
+}
+
+.page-action-menu {
+  position: absolute;
+  top: 50%;
+  right: 36px;
   transform: translateY(-50%);
   display: grid;
   gap: 6px;
-  width: 40mm;
-  z-index: 10;
-}
-
-.page-edit-tools span {
-  padding: 4px 6px;
-  background: var(--bg-soft);
+  width: 46mm;
+  padding: 8px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  text-align: center;
-  color: var(--muted);
-  font-size: 10px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-lg);
 }
 
-.page-edit-tools button,
-.page-side-actions button {
-  min-height: 28px;
+.rt-page {
+  overflow: visible;
+}
+
+.page-action-title {
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font: 700 10px/1.2 var(--font);
+  text-align: center;
+}
+
+.page-action-menu button {
+  min-height: 30px;
   border-radius: var(--radius-sm);
   font-size: 10px;
   padding: 4px 8px;
@@ -1611,12 +1637,16 @@ select:focus {
 
 /* ── Responsive ── */
 @media (max-width: 1200px) {
-  .page-edit-tools {
-    position: static;
-    display: flex;
-    flex-wrap: wrap;
-    width: auto;
-    margin-bottom: 8px;
+  .page-action-floater {
+    top: 8px;
+    right: 8px;
+    transform: none;
+  }
+
+  .page-action-menu {
+    top: 34px;
+    right: 0;
+    transform: none;
   }
 
   .report-stack {
@@ -1642,8 +1672,7 @@ select:focus {
   .settings-panel,
   .dialog-backdrop,
   .modal-backdrop,
-  .page-edit-tools,
-  .page-side-actions,
+  .page-action-floater,
   .page-boundary-overlay,
   .page-overflow-warning,
   .table-toolbar,
@@ -1667,6 +1696,8 @@ select:focus {
 
   .preview-panel {
     width: 100%;
+    padding-right: 0;
+    overflow: visible;
   }
 
   .rt-page {

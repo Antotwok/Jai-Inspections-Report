@@ -262,6 +262,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   showCustomerPartSelection = true;
   pageBoundaryStates: PageBoundaryState[] = [];
   settingsOpen = false;
+  openPageActionIndex = -1;
   combinationDialogMode: CombinationDialogMode = '';
   combinationConfirmMode: CombinationConfirmMode = '';
   appStatusMessage = 'Ready';
@@ -620,11 +621,22 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.schedulePageBoundaryUpdate();
   }
 
+  togglePageActions(pageIndex: number): void {
+    this.openPageActionIndex = this.openPageActionIndex === pageIndex ? -1 : pageIndex;
+  }
+
+  closePageActions(): void {
+    this.openPageActionIndex = -1;
+  }
+
 
   removePage(index: number): void {
     if (this.pages.length === 1) return;
     this.captureHistory();
     this.pages.splice(index, 1);
+    if (this.openPageActionIndex === index) {
+      this.openPageActionIndex = -1;
+    }
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -689,8 +701,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   duplicateRows(pageIndex: number): void {
-    const rows = this.pages[pageIndex]?.rows ?? [];
-    const selectedIndexes = this.getSelectedRowIndexes(rows);
+    const targetPage = this.pages[pageIndex];
+    const rows = targetPage?.rows ?? [];
+    const sourcePage = this.pages.find((page) => this.getSelectedRowIndexes(page.rows).length > 0);
+    const sourceRows = sourcePage?.rows ?? rows;
+    const selectedIndexes = this.getSelectedRowIndexes(sourceRows);
     if (!selectedIndexes.length) {
       this.validationMessage = 'Select one or more rows to duplicate.';
       this.setAppStatus('Duplicate Rows', 'warning');
@@ -698,13 +713,13 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     this.captureHistory();
-    const groupsToCopy = this.collectSelectedRowGroups(rows, selectedIndexes);
-    const insertAt = selectedIndexes[selectedIndexes.length - 1] + 1;
+    const groupsToCopy = this.collectSelectedRowGroups(sourceRows, selectedIndexes);
+    const insertAt = rows.length;
     const duplicatedRows = groupsToCopy.flatMap((groupRows) =>
       groupRows.map((row) => this.cloneRow(row, row.filmGroupId ? this.createFilmGroupId() : undefined))
     );
     rows.splice(insertAt, 0, ...duplicatedRows);
-    this.clearRowSelection(rows);
+    this.clearRowSelection(sourceRows);
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -2726,7 +2741,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
         },
         exposureTechniques: {
           label: 'Exposure Techniques',
-          options: ['S W S I', 'D W S I', 'D W D I'],
+          options: ['S W S I', 'D W S I', 'D W D I', 'D W S I, D W D I'],
           defaultValue: 'S W S I'
         },
         testPerformedBy: {

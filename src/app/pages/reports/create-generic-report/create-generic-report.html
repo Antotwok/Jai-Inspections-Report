@@ -209,16 +209,27 @@
       [style.--upper-details-line-height]="upperDetailsLineHeight"
       [style.--lower-details-font-size]="lowerDetailsFontSize + 'px'"
     >
-      <div class="page-edit-tools">
-        <span>Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
-        <button type="button" (click)="addPage()">Add Page</button>
-        <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex)">Remove Page</button>
-      </div>
-      <div class="page-row-tools" *ngIf="layoutMode === 'edit'">
-        <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex)">
-          Duplicate Selected
+      <div class="page-action-floater" *ngIf="layoutMode === 'edit'">
+        <button
+          type="button"
+          class="page-action-trigger"
+          [class.open]="openPageActionIndex === pageIndex"
+          (click)="togglePageActions(pageIndex)"
+          aria-label="Page actions"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="openPageActionIndex === pageIndex"
+        >
+          ⋯
         </button>
-        <button type="button" (click)="addRow(pageIndex)">Add Row</button>
+        <div class="page-action-menu" *ngIf="openPageActionIndex === pageIndex" role="menu">
+          <span class="page-action-title">Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
+          <button type="button" (click)="addPage(); closePageActions()">Add Page</button>
+          <button type="button" [disabled]="pageCount === 1" (click)="removePage(pageIndex); closePageActions()">Remove Page</button>
+          <button type="button" class="secondary-action" [disabled]="!hasSelectedRows(pageIndex)" (click)="duplicateRows(pageIndex); closePageActions()">
+            Duplicate Selected
+          </button>
+          <button type="button" (click)="addRow(pageIndex)">Add Row</button>
+        </div>
       </div>
       <!-- <div class="page-badge" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">Page {{ pageIndex + 1 }}</div> -->
 
