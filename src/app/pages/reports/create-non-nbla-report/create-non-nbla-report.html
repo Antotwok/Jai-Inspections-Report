@@ -109,7 +109,7 @@
           </label>
           <button type="button" (click)="openSaveDialog()">Save</button>
           <button type="button" (click)="openLoadDialog()">Load</button>
-          <button type="button" (click)="openUpdateDialog()">Update</button>
+          <button type="button" (click)="openUpdateDialog()">Update as Completed</button>
           <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
           <button type="button" class="export-action" (click)="exportExcel()">Export in Excel</button>
         </div>
@@ -327,19 +327,17 @@
                     *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'; else reportDateOrText"
                     [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)"
                   >
-                    <input
-                      class="report-prefix"
-                      type="text"
-                      [ngModel]="reportNumberPrefix"
-                      name="reportNumberPrefix"
-                      (ngModelChange)="reportNumberPrefix = $event; updateReportNumber()"
-                    />
+                    <span class="report-prefix-fixed">JIA /</span>
+                    <span class="report-company-code">{{ reportNumberCompanyCode || '---' }}</span>
+                    <span class="report-separator">/</span>
                     <input
                       type="text"
-                      [ngModel]="reportNumberDigits"
-                      name="reportNumberDigits"
-                      (ngModelChange)="onReportDigitsChange($event)"
+                      [(ngModel)]="reportNumberDigits"
+                      [name]="'reportNumberDigits' + i"
+                      (ngModelChange)="onReportNumberDigitsChange($event)"
+                      placeholder="0097"
                     />
+                    <span class="report-suffix-fixed">/ R</span>
                   </div>
                   <span class="print-value" *ngIf="getFieldControlType(pair.report.label) === 'reportNumber'" [style.font-size]="fieldFontSize(pair.report, upperDetailsFontSize)">{{ pair.report.value }}</span>
 
@@ -770,7 +768,7 @@
   <div class="dialog-backdrop" *ngIf="confirmMode || urlConfirmMode === 'overwrite'" role="presentation" (click)="closeConfirmDialog(); cancelUrlOverwrite()">
     <section class="draft-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle" (click)="$event.stopPropagation()">
       <div class="dialog-header">
-        <p class="eyebrow">{{ confirmMode === 'reset' ? 'Reset report' : confirmMode === 'update' ? 'Update record' : 'Delete draft' }}</p>
+        <p class="eyebrow">{{ confirmMode === 'reset' ? 'Reset report' : confirmMode === 'update' ? 'Update as Completed' : 'Delete draft' }}</p>
         <h2 id="confirmDialogTitle">{{ confirmDialogTitle }}</h2>
       </div>
 
@@ -779,7 +777,7 @@
       <div class="dialog-actions">
         <button type="button" (click)="closeConfirmDialog(); cancelUrlOverwrite()">Cancel</button>
         <button type="button" class="primary-action" (click)="confirmMode ? confirmAction() : confirmUrlOverwrite()">
-          {{ confirmMode ? (confirmMode === 'reset' ? 'Yes, Reset' : confirmMode === 'update' ? 'Yes, Update' : 'Yes, Delete') : 'Yes, Overwrite' }}
+          {{ confirmMode ? (confirmMode === 'reset' ? 'Yes, Reset' : confirmMode === 'update' ? 'Yes, Update as Completed' : 'Yes, Delete') : 'Yes, Overwrite' }}
         </button>
       </div>
     </section>

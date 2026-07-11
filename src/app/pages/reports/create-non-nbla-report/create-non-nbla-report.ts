@@ -996,7 +996,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     if (this.confirmMode === 'update') {
       this.confirmMode = '';
-      this.updateExistingDraft();
+      this.updateExistingDraft('COMPLETED');
       return;
     }
 
@@ -1071,13 +1071,14 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     try {
-      const payload = this.createReportPayload('NON_NABL', mode === 'completed' ? 'COMPLETED' : 'DRAFT');
+      const payload = await this.createReportPayload('NON_NABL', mode === 'completed' ? 'COMPLETED' : 'DRAFT');
       console.log('[report:save]', payload);
       const saved = await firstValueFrom(this.reportService.createReport(payload));
       await this.saveNamedDraftToServer(normalizedName, this.createDraftSnapshot());
       this.currentReportId = saved.id;
       this.selectedDraftToLoad = String(saved.id);
-      await this.incrementCustomerReportNumber();
+      await this.incrementCustomerReportNumberFromReportNo(saved.report_no || payload.report_no || this.fieldValue('Report No'));
+      await this.refreshAvailableReports();
       this.customerService.notifySequenceChanged();
       this.closeDraftDialog();
       this.setAppStatus(mode === 'completed' ? 'Report Completed Successfully' : 'Report Saved Successfully', 'saved');
@@ -1088,19 +1089,27 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
-  private async updateExistingDraft(): Promise<void> {
+  private async updateExistingDraft(status: 'DRAFT' | 'COMPLETED' = 'DRAFT'): Promise<void> {
     if (!this.currentReportId) {
       this.setAppStatus('Unable to Update Report', 'error');
       return;
     }
 
     try {
-      const payload = this.createReportPayload('NON_NABL', 'DRAFT');
+      const payload = await this.createReportPayload('NON_NABL', status);
       console.log('[report:update]', { reportId: this.currentReportId, payload });
       await firstValueFrom(this.reportService.updateReport(this.currentReportId, payload));
+      await this.refreshAvailableReports();
       this.customerService.notifySequenceChanged();
-      this.setAppStatus('Report Updated Successfully', 'updated');
-      void this.advanceSequenceAfterSave(`Report "${this.fieldValue('Report No')}" updated successfully.`);
+      this.setAppStatus(
+        status === 'COMPLETED' ? 'Report Updated and Marked Completed' : 'Report Updated Successfully',
+        'updated'
+      );
+      void this.advanceSequenceAfterSave(
+        status === 'COMPLETED'
+          ? `Report "${this.fieldValue('Report No')}" updated and marked completed successfully.`
+          : `Report "${this.fieldValue('Report No')}" updated successfully.`
+      );
     } catch (error: any) {
       console.error('[report:update:error]', error);
       this.setAppStatus(error?.error?.message || error?.message || 'Unable to Update Report', 'error');
@@ -1233,11 +1242,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return name;
   }
 
-  private createReportPayload(reportType: 'NABL' | 'NON_NABL', status: 'DRAFT' | 'COMPLETED') {
+  private async createReportPayload(reportType: 'NABL' | 'NON_NABL', status: 'DRAFT' | 'COMPLETED') {
     const snapshot = this.createDraftSnapshot();
     const selectedCustomer = this.getSelectedCustomer();
     const selectedPart = this.getSelectedPart();
-    const reportNo = this.formatReportNumber();
+    const reportNo = this.fieldValue('Report No').trim() || this.composeReportNumber();
     const urlNo = this.fieldValue('URL No'); // Get URL No.
     const rows = this.pages.flatMap((page, pageIndex) =>
       page.rows.map((row, rowIndex) => ({
@@ -1296,58 +1305,56 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.setFieldValue('Report No', this.formatReportNumber(code, nextDigits));
   }
 
+  private applyStoredReportNumber(reportNo: string, customer?: Customer): void {
+    const normalized = String(reportNo || '').trim();
+    if (!normalized) return;
+
+    const code = String(customer?.customer_code || this.getSelectedCustomer()?.customer_code || '').trim().toUpperCase();
+    const digitsMatch = /JIA\s*\/\s*[A-Z0-9]+\s*\/\s*([0-9]+)/i.exec(normalized);
+    const digits = digitsMatch?.[1] || this.reportNumberDigits || '';
+
+    this.reportNumberDigits = digits;
+    if (code && digits) {
+      this.setFieldValue('Report No', this.formatReportNumber(code, digits));
+      return;
+    }
+
+    this.setFieldValue('Report No', normalized);
+  }
+
+  private async incrementCustomerReportNumberFromReportNo(reportNo: string): Promise<void> {
+    const customerId = Number(this.selectedCustomerId);
+    if (!customerId) return;
+
+    const customer = this.customers.find((item) => Number(item.id) === customerId);
+    if (!customer) return;
+
+    const normalized = String(reportNo || '').trim();
+    const digitsMatch = /\/\s*([0-9]{1,})\s*\/\s*R$/i.exec(normalized) || /\/\s*([0-9]{1,})\s*(?:\/\s*R)?$/i.exec(normalized);
+    const nextCurrent = Number(digitsMatch?.[1] || 0);
+    if (!Number.isFinite(nextCurrent) || nextCurrent <= 0) return;
+
+    try {
+      await firstValueFrom(
+        this.customerService.updateCustomer(customerId, {
+          ...customer,
+          customer_code: customer.customer_code,
+          customer_name: customer.customer_name,
+          current_report_number: nextCurrent
+        })
+      );
+      customer.current_report_number = nextCurrent;
+    } catch (error) {
+      console.error('[customer:report-number:update:error]', error);
+    }
+  }
+
   private updateUrlNumberForCustomer(customer: Customer): void {
     const current = Number(customer.current_url_number || 0);
     const nextNumber = Number.isFinite(current) ? current + 1 : 1;
     const nextDigits = String(nextNumber).padStart(4, '0'); // Assuming 4 digits for URL No.
     this.urlNumberDigits = nextDigits;
     this.updateUrlNumber();
-  }
-
-  private async incrementCustomerReportNumber(): Promise<void> {
-    const customerId = Number(this.selectedCustomerId);
-    if (!customerId) return;
-
-    const customer = this.customers.find((item) => Number(item.id) === customerId);
-    if (!customer) return;
-
-    const nextCurrent = Number(this.reportNumberDigits || 0);
-    try {
-      await firstValueFrom(
-        this.customerService.updateCustomer(customerId, {
-          ...customer,
-          customer_code: customer.customer_code,
-          customer_name: customer.customer_name,
-          current_report_number: nextCurrent
-        })
-      );
-      customer.current_report_number = nextCurrent;
-    } catch (error) {
-      console.error('[customer:report-number:update:error]', error);
-    }
-  }
-
-  private async incrementCustomerUrlNumber(): Promise<void> {
-    const customerId = Number(this.selectedCustomerId);
-    if (!customerId) return;
-
-    const customer = this.customers.find((item) => Number(item.id) === customerId);
-    if (!customer) return;
-
-    const nextCurrent = Number(this.urlNumberDigits || 0);
-    try {
-      await firstValueFrom(
-        this.customerService.updateCustomer(customerId, {
-          ...customer,
-          customer_code: customer.customer_code,
-          customer_name: customer.customer_name,
-          current_report_number: nextCurrent
-        })
-      );
-      customer.current_report_number = nextCurrent;
-    } catch (error) {
-      console.error('[customer:report-number:update:error]', error);
-    }
   }
 
   resetDraft(): void {
@@ -1633,23 +1640,17 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return this.otherFieldLabels.has(field.label) || this.isOtherSelected(key, field.value);
   }
 
-  onReportDigitsChange(value: string): void {
+  onReportNumberChange(value: string): void {
     this.captureHistory();
-    const prefix = this.reportNumberPrefix || 'JIA / ';
-    this.reportNumberDigits = value.startsWith(prefix) ? value.slice(prefix.length) : value;
-    this.updateReportNumber();
+    this.setFieldValue('Report No', value);
     this.clearRedoStack();
   }
 
-  updateReportNumber(): void {
-    const prefix = this.reportNumberPrefix || 'JIA / ';
-    let value = this.reportNumberDigits || '';
-    if (value.startsWith(prefix)) {
-      value = value.slice(prefix.length);
-    }
-    this.reportNumberDigits = value;
-    const suffix = this.reportNumberSuffix();
-    this.setFieldValue('Report No', suffix ? `${prefix}${value} / ${suffix}`.trim() : `${prefix}${value}`.trim());
+  onReportNumberDigitsChange(value: string): void {
+    this.captureHistory();
+    this.reportNumberDigits = String(value || '').trim();
+    this.setFieldValue('Report No', this.composeReportNumber());
+    this.clearRedoStack();
   }
 
   onUrlDigitsChange(value: string): void {
@@ -1795,6 +1796,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.updateUrlNumberForCustomer(customer); // Call for URL No.
       this.setFieldValue('Material', '');
       this.updateReportNumberForCustomer(customer);
+      this.setFieldValue('Report No', this.composeReportNumber());
     }
 
     this.customerService.getParts(Number(customerId)).subscribe({
@@ -2059,6 +2061,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const customerName = report.customer_name || reportJson.customerName || this.extractCustomerNameFromField();
     const partNumber = report.part_number || reportJson.partNumber || this.fieldValue('Part No *');
     const dateCode = (report as any).date_code || reportJson.dateCode || reportJson.date_code || '';
+    const reportNo = report.report_no || reportJson.reportNo || '';
 
     if (customerId) {
       this.selectedCustomerId = String(customerId);
@@ -2073,6 +2076,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.setFieldValue('Customer Name & Address *', customerText);
       this.customerFields[0].value = customerText;
     }
+
+    this.applyStoredReportNumber(reportNo, selectedCustomer ?? undefined);
 
     if (!this.selectedCustomerId) {
       if (partId) this.selectedPartId = String(partId);
@@ -2940,11 +2945,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private hydrateReportNumber(): void {
-    const reportNumber = this.fieldValue('Report No');
-    const prefix = this.reportNumberPrefix || 'JIA / ';
-    const value = reportNumber.startsWith(prefix) ? reportNumber.slice(prefix.length) : reportNumber;
-    this.reportNumberDigits = this.reportNumberDigits || value || '';
-    this.updateReportNumber();
+    this.reportNumberDigits = '';
   }
 
   private hydrateUrlNumber(): void {
@@ -3037,23 +3038,22 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   private reportNumberSuffix(): string {
-    const source = this.fieldValue('Source').trim().toUpperCase();
-    if (!source) return '';
-    if (source.includes('X-RAY') || source.includes('X RAY')) return 'R';
-    if (source.includes('IR-192') || source.includes('CO-60') || source.includes('GAMMA')) return 'G';
     return '';
   }
 
   private formatReportNumber(customerCode?: string, digits?: string): string {
     const code = String(customerCode || this.getSelectedCustomer()?.customer_code || '').trim().toUpperCase();
-    const nextDigits = String(digits || this.reportNumberDigits || this.fieldValue('Report No')).trim();
-    const suffix = this.reportNumberSuffix();
+    const number = String(digits || this.reportNumberDigits || '').trim();
+    if (!code || !number) return String(this.fieldValue('Report No') || '').trim();
+    return `JIA / ${code} / ${number} / R`;
+  }
 
-    if (!code || !nextDigits) {
-      return this.fieldValue('Report No');
-    }
+  private composeReportNumber(): string {
+    return this.formatReportNumber(this.reportNumberCompanyCode, this.reportNumberDigits);
+  }
 
-    return suffix ? `JIA / ${code} / ${nextDigits} / ${suffix}` : `JIA / ${code} / ${nextDigits}`;
+  get reportNumberCompanyCode(): string {
+    return String(this.getSelectedCustomer()?.customer_code || '').trim().toUpperCase();
   }
 }
 

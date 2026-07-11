@@ -601,10 +601,19 @@ async function updateReport(req, res) {
     const jobNumbers = extractJobNumbers(reportJson, reportRows);
     const highestJobNumber = jobNumbers.length ? Math.max(...jobNumbers) : null;
 
+    const existingReportResult = await client.query(
+      'SELECT id FROM reports WHERE id = $1',
+      [reportId]
+    );
+    if (!existingReportResult.rowCount) {
+      return res.status(404).json({ message: 'Report not found.' });
+    }
+    const reportNo = sanitizeText(body.report_no);
+
     reportLog('update.start', {
       reportId,
       reportType,
-      reportNo: sanitizeText(body.report_no),
+      reportNo,
       rows: reportRows.length
     });
 
@@ -634,9 +643,9 @@ async function updateReport(req, res) {
       WHERE id = $18
       RETURNING *
       `,
-      [
+        [
         reportType,
-        sanitizeText(body.report_no),
+        reportNo,
         customerId,
         customerName,
         partId,

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -29,6 +29,16 @@ export class ReportRepositoryComponent implements OnInit {
     void this.loadReports();
   }
 
+  @HostListener('window:focus')
+  onWindowFocus(): void {
+    void this.refreshIfVisible();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    void this.refreshIfVisible();
+  }
+
   async loadReports(): Promise<void> {
     this.loading = true;
     this.setSystemStatus('Loading reports...', 'loading');
@@ -41,6 +51,14 @@ export class ReportRepositoryComponent implements OnInit {
     } finally {
       this.loading = false;
     }
+  }
+
+  private async refreshIfVisible(): Promise<void> {
+    if (this.loading || document.hidden) {
+      return;
+    }
+
+    await this.loadReports();
   }
 
   async deleteReport(report: StoredReport): Promise<void> {
