@@ -1078,6 +1078,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.currentReportId = saved.id;
       this.selectedDraftToLoad = String(saved.id);
       await this.incrementCustomerReportNumberFromReportNo(saved.report_no || payload.report_no || this.fieldValue('Report No'));
+      await this.incrementCustomerUrlNumberFromUrlNo((saved as any).url_no || payload.url_no || this.fieldValue('URL No'));
       await this.refreshAvailableReports();
       this.customerService.notifySequenceChanged();
       this.closeDraftDialog();
@@ -1346,6 +1347,34 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       customer.current_report_number = nextCurrent;
     } catch (error) {
       console.error('[customer:report-number:update:error]', error);
+    }
+  }
+
+  private async incrementCustomerUrlNumberFromUrlNo(urlNo: string): Promise<void> {
+    const customerId = Number(this.selectedCustomerId);
+    if (!customerId) return;
+
+    const customer = this.customers.find((item) => Number(item.id) === customerId);
+    if (!customer) return;
+
+    const normalized = String(urlNo || '').trim();
+    const digitsMatch = /\/\s*([0-9]{1,})\s*$/i.exec(normalized);
+    const nextCurrent = Number(digitsMatch?.[1] || 0);
+    if (!Number.isFinite(nextCurrent) || nextCurrent <= 0) return;
+
+    try {
+      await firstValueFrom(
+        this.customerService.updateCustomer(customerId, {
+          ...customer,
+          customer_code: customer.customer_code,
+          customer_name: customer.customer_name,
+          current_report_number: Number(customer.current_report_number || 0),
+          current_url_number: nextCurrent
+        })
+      );
+      customer.current_url_number = nextCurrent;
+    } catch (error) {
+      console.error('[customer:url-number:update:error]', error);
     }
   }
 

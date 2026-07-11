@@ -7,6 +7,7 @@ export interface Customer {
   id?: number;
   customer_code: string;
   current_report_number?: number;
+  current_url_number?: number;
   customer_name: string;
   customer_address?: string | null;
   gst_number?: string | null;

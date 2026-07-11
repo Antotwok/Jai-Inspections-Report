@@ -8,6 +8,7 @@ async function getCustomers(req, res) {
           id,
           customer_code,
           current_report_number,
+          current_url_number,
           customer_name,
           customer_address,
           gst_number,
@@ -37,6 +38,7 @@ async function getCustomerById(req, res) {
           id,
           customer_code,
           current_report_number,
+          current_url_number,
           customer_name,
           customer_address,
           gst_number,
@@ -66,6 +68,7 @@ async function createCustomer(req, res) {
   const {
     customer_code,
     current_report_number = 0,
+    current_url_number = 0,
     customer_name,
     customer_address = null,
     gst_number = null,
@@ -97,6 +100,7 @@ async function createCustomer(req, res) {
         INSERT INTO customers (
           customer_code,
           current_report_number,
+          current_url_number,
           customer_name,
           customer_address,
           gst_number,
@@ -112,6 +116,7 @@ async function createCustomer(req, res) {
       [
         customer_code.trim(),
         Number(current_report_number) || 0,
+        Number(current_url_number) || 0,
         customer_name.trim(),
         customer_address,
         gst_number,
@@ -139,6 +144,7 @@ async function updateCustomer(req, res) {
   const {
     customer_code,
     current_report_number = 0,
+    current_url_number = 0,
     customer_name,
     customer_address = null,
     gst_number = null,
@@ -180,19 +186,21 @@ async function updateCustomer(req, res) {
         SET
           customer_code = $1,
           current_report_number = $2,
-          customer_name = $3,
-          customer_address = $4,
-          gst_number = $5,
-          contact_person = $6,
-          phone_number = $7,
-          email = $8,
+          current_url_number = $3,
+          customer_name = $4,
+          customer_address = $5,
+          gst_number = $6,
+          contact_person = $7,
+          phone_number = $8,
+          email = $9,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $9
+        WHERE id = $10
         RETURNING *
       `,
       [
         customer_code.trim(),
         Number(current_report_number) || 0,
+        Number(current_url_number) || 0,
         customer_name.trim(),
         customer_address,
         gst_number,

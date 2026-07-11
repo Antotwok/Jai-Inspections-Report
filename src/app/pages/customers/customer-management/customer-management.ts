@@ -75,6 +75,7 @@ export class CustomerManagementComponent implements OnInit {
     const payload = {
       customer_code: this.customer.customer_code.trim(),
       current_report_number: Number(this.customer.current_report_number ?? 0) || 0,
+      current_url_number: Number(this.customer.current_url_number ?? 0) || 0,
       customer_name: this.customer.customer_name.trim(),
       customer_address: this.customer.customer_address?.trim() || null
     };
@@ -126,6 +127,7 @@ export class CustomerManagementComponent implements OnInit {
     return {
       customer_code: '',
       current_report_number: 0,
+      current_url_number: 0,
       customer_name: '',
       customer_address: '',
       gst_number: '',

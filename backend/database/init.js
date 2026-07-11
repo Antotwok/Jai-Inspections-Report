@@ -6,6 +6,7 @@ async function ensureCustomersTable() {
       id SERIAL PRIMARY KEY,
       customer_code VARCHAR(100) NOT NULL UNIQUE,
       current_report_number INTEGER NOT NULL DEFAULT 0,
+      current_url_number INTEGER NOT NULL DEFAULT 0,
       customer_name VARCHAR(255) NOT NULL,
       customer_address TEXT,
       gst_number VARCHAR(50),
@@ -44,6 +45,11 @@ async function ensureCustomerPartsTable() {
   await pool.query(`
     ALTER TABLE customer_parts
     ALTER COLUMN part_name DROP NOT NULL
+  `);
+
+  await pool.query(`
+    ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS current_url_number INTEGER NOT NULL DEFAULT 0
   `);
 
   await pool.query(`
