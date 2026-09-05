@@ -95,6 +95,14 @@ interface GenericRtDraft {
   footerFormatNo: string;
   footerFirstIssue: string;
   tableColumnWidths: number[];
+  tableHeaders?: string[];
+  densityLabel?: string;
+  sensitivityLabel?: string;
+  remarksLabel?: string;
+  abbreviationLabel?: string;
+  abbreviationEntries?: Array<{ code: string; description: string }>;
+  endOfReportLabel?: string;
+  footerPageLabelText?: string;
 }
 
 interface GenericRtHistoryState {
@@ -2476,7 +2484,15 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       footerFormatNo: this.footerFormatNo,
       footerFirstIssue: this.footerFirstIssue,
       reportNumberPrefix: this.reportNumberPrefix,
-      tableColumnWidths: this.tableColumnWidths
+      tableColumnWidths: this.tableColumnWidths,
+      tableHeaders: this.tableHeaders,
+      densityLabel: this.densityLabel,
+      sensitivityLabel: this.sensitivityLabel,
+      remarksLabel: this.remarksLabel,
+      abbreviationLabel: this.abbreviationLabel,
+      abbreviationEntries: this.abbreviationEntries,
+      endOfReportLabel: this.endOfReportLabel,
+      footerPageLabelText: this.footerPageLabelText
     };
   }
 
