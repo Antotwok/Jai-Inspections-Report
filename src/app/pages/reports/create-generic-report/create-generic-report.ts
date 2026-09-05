@@ -181,7 +181,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   private readonly settingsStorageKey = 'jai-generic-rt-report-settings';
   private readonly settingsSyncKey = 'jai-generic-rt-report-settings';
   private readonly a4WidthMm = 210;
-  private readonly a4HeightMm = 302;
+  private readonly a4HeightMm = 297;
   private resizeObserver?: ResizeObserver;
   private boundaryFrameId = 0;
   private lastGeneratedDescription = '';
@@ -378,6 +378,15 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     return this.showPageBoundaries && this.pageBoundaryStates.some((state) => state.hasOverflow);
   }
 
+  get currentReportSummary(): string {
+    const reportNumber = this.fieldValue('Report No').trim();
+    if (!reportNumber) return 'New Report';
+    const customerName = (this.fieldValue('Customer Name & Address *') || '').split('\n')[0].trim();
+    const partNumber = this.selectedPartNumber.trim() || this.fieldValue('Drawing Number').trim();
+    const dateCode = this.selectedDateCode.trim();
+    return [reportNumber, customerName, partNumber, dateCode, 'NABL'].filter(Boolean).join(' | ');
+  }
+
   get filteredPartNumberOptions(): string[] {
     const term = this.partSearchText.trim().toLowerCase();
     return this.partNumberOptions.filter((option) => option.toLowerCase().includes(term)).slice(0, 10);
@@ -476,7 +485,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     if (previous.filmGroupId) {
-      rows.push(...this.cloneRowGroup(rows, rows.length - 1));
+      rows.push(...this.cloneRowGroup(rows, rows.length - 1, this.autoCountEnabled));
     } else {
       if (this.autoCountEnabled) {
         rows.push(this.cloneRowWithAutoCount(previous));
@@ -530,7 +539,8 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   canCombineRow(pageIndex: number, rowIndex: number): boolean {
     const rows = this.pages[pageIndex].rows;
     const current = rows[rowIndex];
-    const next = rows[rowIndex + 1];
+    const span = this.rowGroupRowspan(pageIndex, rowIndex);
+    const next = rows[rowIndex + span];
     if (!current || !next) return false;
     return this.sameRowContext(current, next);
   }
@@ -538,12 +548,27 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   combineWithNext(pageIndex: number, rowIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     const current = rows[rowIndex];
-    const next = rows[rowIndex + 1];
+    const span = this.rowGroupRowspan(pageIndex, rowIndex);
+    const next = rows[rowIndex + span];
     if (!current || !next || !this.sameRowContext(current, next)) return;
 
-    const groupId = current.filmGroupId || next.filmGroupId || this.createFilmGroupId();
-    current.filmGroupId = groupId;
-    next.filmGroupId = groupId;
+    const groupId = current.filmGroupId || this.createFilmGroupId();
+    for (let i = rowIndex; i < rowIndex + span; i++) {
+      rows[i].filmGroupId = groupId;
+      rows[i].description = current.description;
+    }
+    const oldNextGroupId = next.filmGroupId;
+    if (oldNextGroupId && oldNextGroupId !== groupId) {
+      rows
+        .filter((r) => r.filmGroupId === oldNextGroupId)
+        .forEach((r) => {
+          r.filmGroupId = groupId;
+          r.description = current.description;
+        });
+    } else {
+      next.filmGroupId = groupId;
+      next.description = current.description;
+    }
     this.schedulePageBoundaryUpdate();
   }
 
@@ -620,6 +645,34 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       this.validationMessage = 'PDF exported successfully.';
     } catch (error) {
       this.validationMessage = 'Start the backend server, then try Export as PDF again.';
+      console.error(error);
+    }
+  }
+
+  async exportExcel(): Promise<void> {
+    try {
+      const reportPayload = this.createReportPayload('GENERIC' as any, 'DRAFT');
+      const response = await fetch(`${environment.apiUrl}/export-excel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report: reportPayload })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${this.pdfFileName()}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      this.validationMessage = 'Excel exported successfully.';
+      this.showSaveStatus('Excel exported successfully.', 'success');
+    } catch (error) {
+      this.validationMessage = 'Start the backend server, then try Export in Excel again.';
+      this.showSaveStatus('Unable to export Excel.', 'error');
       console.error(error);
     }
   }
@@ -1440,9 +1493,17 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   }
 
   serialNumber(pageIndex: number, rowIndex: number): number {
-    return this.pages
-      .slice(0, pageIndex)
-      .reduce((total, page) => total + page.rows.length, 0) + rowIndex + 1;
+    const pages = this.pages.slice(0, pageIndex);
+    const previousSerials = pages.reduce((total, page) => total + this.visibleRowCount(page.rows), 0);
+    return previousSerials + this.visibleRowCount(this.pages[pageIndex].rows.slice(0, rowIndex + 1));
+  }
+
+  private visibleRowCount(rows: GenericRtRow[]): number {
+    return rows.reduce((count, row, index) => {
+      if (!row.filmGroupId) return count + 1;
+      if (index > 0 && rows[index - 1]?.filmGroupId === row.filmGroupId) return count;
+      return count + 1;
+    }, 0);
   }
 
   tableColumnWidth(index: number): string {
@@ -1819,7 +1880,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     return `film-group-${nextFilmGroupId++}`;
   }
 
-  private cloneRowGroup(rows: GenericRtRow[], startIndex: number): GenericRtRow[] {
+  private cloneRowGroup(rows: GenericRtRow[], startIndex: number, autoCount = false): GenericRtRow[] {
     const sourceRow = rows[startIndex];
     if (!sourceRow) {
       return [this.createRow(this.generatedDescription(), '')];
@@ -1827,26 +1888,30 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
     const sourceGroupId = sourceRow.filmGroupId;
     if (!sourceGroupId) {
-      return [this.cloneRow(sourceRow)];
+      return [autoCount ? this.cloneRowWithAutoCount(sourceRow) : this.cloneRow(sourceRow)];
     }
 
     const groupRows = rows.filter((row) => row.filmGroupId === sourceGroupId);
     const newGroupId = this.createFilmGroupId();
+    const baseDescription = groupRows[0]?.description || sourceRow.description;
+    const nextDescription = autoCount ? this.incrementTrailingNumber(baseDescription) : baseDescription;
 
-    return groupRows.map((row) => this.cloneRow(row, newGroupId));
+    return groupRows.map((row) => {
+      const cloned = this.cloneRow(row, newGroupId);
+      if (autoCount) {
+        cloned.description = nextDescription;
+      }
+      delete cloned.selected;
+      return cloned;
+    });
   }
 
   private sameRowContext(a: GenericRtRow, b: GenericRtRow): boolean {
     return (
-      a.description === b.description &&
       a.thickness === b.thickness &&
-      a.segment === b.segment &&
-      a.sfd === b.sfd &&
-      a.density === b.density &&
-      a.sensitivity === b.sensitivity &&
       a.filmSize === b.filmSize &&
       a.observations === b.observations &&
-      a.result === b.result
+      (a.result ?? '') === (b.result ?? '')
     );
   }
 

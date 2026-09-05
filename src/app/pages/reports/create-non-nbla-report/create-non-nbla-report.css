@@ -565,7 +565,7 @@ button:disabled {
   border-radius: 2px;
   box-shadow: var(--shadow-lg);
   font: 10.5px/1.18 Arial, sans-serif;
-  padding: 10mm 12.5mm 42mm; /* Adjusted bottom padding to make space for fixed footer */
+  padding: 10mm 12.5mm 34mm; /* Reduced bottom padding so footer content stays on the current page */
   overflow-x: clip;
 }
 
@@ -1166,7 +1166,7 @@ select:focus {
 /* Footer wrapper to fix at the bottom */
 .footer-wrapper {
   position: absolute;
-  bottom: 4mm; /* Aligns with the page number in generic report */
+  bottom: 1.5mm; /* Lift footer content to prevent it from flowing onto the next page */
   left: 12.5mm; /* Aligns with page content padding */
   right: 12.5mm; /* Aligns with page content padding */
   display: flex; /* To arrange last-page-footer and page-footer */
@@ -1265,7 +1265,7 @@ select:focus {
 .signature-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1.75fr;
-  min-height: 30mm;
+  min-height: 24mm;
 }
 
 .signature-grid div {
@@ -1280,9 +1280,7 @@ select:focus {
 }
 
 .signature-grid strong {
-  border-bottom: 1px solid #333333;
   padding: 1mm;
-  background: #fafbfa;
   font-weight: 700;
 }
 
@@ -1412,6 +1410,7 @@ select:focus {
   grid-template-columns: 1fr 1.4fr 1fr;
   align-items: end;
   gap: 4mm;
+  margin-top: 1mm;
   font-size: 9px;
   font-weight: 700;
   color: var(--muted);
@@ -1719,7 +1718,7 @@ select:focus {
 
   .footer-wrapper {
     position: absolute;
-    bottom: 4mm;
+    bottom: 0.5mm;
     left: 12.5mm;
     right: 12.5mm;
     display: flex;
@@ -1767,6 +1766,14 @@ select:focus {
     min-height: 0;
     border-bottom: 1px solid #333;
     background: #fff;
+  }
+
+  .report-body-content .table-extension {
+    min-height: 0 !important;
+  }
+
+  .footer-wrapper .page-footer {
+    margin-top: -0.5mm;
   }
 
   .add-part-name-btn,

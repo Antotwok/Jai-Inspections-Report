@@ -4,206 +4,161 @@
       <p class="eyebrow">NABL RT Report</p>
       <h1>NABL Test Report</h1>
     </div>
+    <div class="header-status">
+      <div class="status-block">
+        <span class="status-label">Current Report</span>
+        <strong class="status-value">{{ currentReportSummary }}</strong>
+      </div>
+    </div>
     <div class="header-actions">
-      <button type="button" (click)="showMenus = !showMenus">
-        {{ showMenus ? 'Hide Menus' : 'Show Menus' }}
-      </button>
-      <button type="button" (click)="showCustomerPartSelection = !showCustomerPartSelection">
-        {{ showCustomerPartSelection ? 'Hide Customer/Part' : 'Show Customer/Part' }}
-      </button>
-      <a class="home-link" href="/dashboard">Home</a>
+      <a class="home-link" href="/dashboard">Dashboard</a>
     </div>
   </header>
 
-  <section class="page-controls" *ngIf="showMenus" aria-label="Page controls">
-    <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
-    <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
-    <button type="button" (click)="addPage()">Add Page</button>
-    <button type="button" (click)="openSaveDialog()">Save</button>
-    <button type="button" (click)="openLoadDialog()">Load</button>
-    <button type="button" (click)="openUpdateDialog()">Update</button>
-    <button type="button" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
-    <label class="boundary-toggle">
-      <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
-      Auto count
-    </label>
-    <button type="button" class="quiet-action" [disabled]="!selectedDraftToLoad" (click)="openDeleteDraftDialog(selectedDraftToLoad)">
-      Delete
-    </button>
-    <button type="button" (click)="settingsOpen = !settingsOpen">Settings</button>
-    <button type="button" class="quiet-action" (click)="resetDraft()">Reset</button>
-    <span class="validation-message" *ngIf="nextReportNumber">Next NABL Report Number: {{ nextReportNumber }}</span>
-    <span class="sequence-chip" *ngIf="nextAvailableSequence">Next Available Sequence: {{ nextAvailableSequence }}</span>
-    <label class="font-size-control">
-      Upper details
-      <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
-    </label>
-    <label class="font-size-control">
-      Upper line spacing
-      <input type="number" min="0.75" max="1.4" step="0.05" [(ngModel)]="upperDetailsLineHeight" name="upperDetailsLineHeight" (ngModelChange)="updateUpperDetailsLineHeight($event)" />
-    </label>
-    <label class="font-size-control">
-      Lower details
-      <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
-    </label>
-     <!-- <div class="mode-switch" role="group" aria-label="Layout mode">
-        <button type="button" [class.active]="layoutMode === 'edit'" (click)="setLayoutMode('edit')">Edit</button>
-        <button type="button" [class.active]="layoutMode === 'preview'" (click)="setLayoutMode('preview')">Preview</button>
-      </div> -->
-    <label class="boundary-toggle"> 
-      <input
-        type="checkbox"
-        [(ngModel)]="showPageBoundaries"
-        name="showPageBoundaries"
-        (ngModelChange)="schedulePageBoundaryUpdate()"
-      />
-      Layout Guide
-    </label>
-    <label class="font-size-control">
-      End of page shift (cm)
-      <input
-        type="number"
-        min="0"
-        max="10"
-        step="0.1"
-        [(ngModel)]="pageBoundaryShiftCm"
-        name="pageBoundaryShiftCm"
-        (ngModelChange)="schedulePageBoundaryUpdate()"
-      />
-    </label>
-    <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
-    <span class="save-status-message" *ngIf="saveStatusMessage" [class.success]="saveStatusType === 'success'" [class.error]="saveStatusType === 'error'">
-      {{ saveStatusMessage }}
-    </span>
-    <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
-    <span class="page-overflow-warning" *ngIf="hasPageBoundaryOverflow">
-      Content below the red line will move to Page 2 when printed or exported.
-    </span>
-  </section>
+  <section class="report-workspace" aria-label="NABL report workspace">
+    <aside class="control-panel">
+      <section class="control-card" aria-label="Report controls">
+        <div class="control-card-header">
+          <p class="eyebrow">REPORT</p>
+          <h2>Report controls</h2>
+        </div>
+        <div class="control-group">
+          <label>
+            Customer
+            <select [ngModel]="selectedCustomerId" name="selectedCustomerId" (ngModelChange)="onCustomerSelection($event)">
+              <option value="">Select customer</option>
+              <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
+            </select>
+          </label>
+          <label>
+            Part Number
+            <input
+              [(ngModel)]="partSearchText"
+              name="partSearchText"
+              placeholder="Search or type part number"
+              [attr.list]="partNumberDatalistId"
+              autocomplete="off"
+              (ngModelChange)="onPartSelection($event)"
+            />
+          </label>
+          <datalist [id]="partNumberDatalistId">
+            <option *ngFor="let partNumber of filteredPartNumberOptions" [value]="partNumber"></option>
+          </datalist>
+          <div class="autocomplete-list" *ngIf="partSearchText.trim()">
+            <button type="button" *ngFor="let partNumber of filteredPartNumberOptions" (click)="partSearchText = partNumber; onPartSelection(partNumber)">
+              {{ partNumber }}
+            </button>
+          </div>
+          <label>
+            Date Code
+            <input
+              [(ngModel)]="dateCodeSearchText"
+              name="dateCodeSearchText"
+              placeholder="Search or type date code"
+              [attr.list]="dateCodeDatalistId"
+              autocomplete="off"
+              (ngModelChange)="onDateCodeSelection($event)"
+            />
+          </label>
+          <datalist [id]="dateCodeDatalistId">
+            <option *ngFor="let dateCode of filteredDateCodeOptions" [value]="dateCode"></option>
+          </datalist>
+          <div class="autocomplete-list" *ngIf="dateCodeSearchText.trim()">
+            <button type="button" *ngFor="let dateCode of filteredDateCodeOptions" (click)="dateCodeSearchText = dateCode; onDateCodeSelection(dateCode)">
+              {{ dateCode }}
+            </button>
+          </div>
+          <div class="sequence-inline" *ngIf="nextAvailableSequence">
+            Next Available Sequence: {{ nextAvailableSequence }}
+          </div>
+          <p class="sequence-missing" *ngIf="sequenceMissingMessage">{{ sequenceMissingMessage }}</p>
+          <button type="button" class="primary-action" *ngIf="sequenceMissingMessage" (click)="openAddCombinationDialog()">
+            Add New Combination
+          </button>
+          <div class="sequence-inline" *ngIf="nextReportNumber">
+            Next NABL Report Number: {{ nextReportNumber }}
+          </div>
+        </div>
+      </section>
 
-  <section class="settings-panel customer-connector" *ngIf="showCustomerPartSelection" aria-label="Customer and part selection">
-    <div class="settings-column">
-      <h2>Customer</h2>
-      <select [ngModel]="selectedCustomerId" name="selectedCustomerId" (ngModelChange)="onCustomerSelection($event)">
-        <option value="">Select customer</option>
-        <option *ngFor="let customer of customers" [value]="customer.id">{{ customer.customer_code }} - {{ customer.customer_name }}</option>
-      </select>
-    </div>
-    <div class="settings-column">
-      <h2>Part</h2>
-      <input
-        [(ngModel)]="partSearchText"
-        name="partSearchText"
-        placeholder="Search or type part number"
-        [attr.list]="partNumberDatalistId"
-        autocomplete="off"
-        (ngModelChange)="onPartSelection($event)"
-      />
-      <datalist [id]="partNumberDatalistId">
-        <option *ngFor="let partNumber of filteredPartNumberOptions" [value]="partNumber"></option>
-      </datalist>
-      <div class="autocomplete-list" *ngIf="partSearchText.trim()">
-        <button type="button" *ngFor="let partNumber of filteredPartNumberOptions" (click)="partSearchText = partNumber; onPartSelection(partNumber)">
-          {{ partNumber }}
-        </button>
-      </div>
-    </div>
-    <div class="settings-column">
-      <h2>Date Code</h2>
-      <input
-        [(ngModel)]="dateCodeSearchText"
-        name="dateCodeSearchText"
-        placeholder="Search or type date code"
-        [attr.list]="dateCodeDatalistId"
-        autocomplete="off"
-        (ngModelChange)="onDateCodeSelection($event)"
-      />
-      <datalist [id]="dateCodeDatalistId">
-        <option *ngFor="let dateCode of filteredDateCodeOptions" [value]="dateCode"></option>
-      </datalist>
-      <div class="autocomplete-list" *ngIf="dateCodeSearchText.trim()">
-        <button type="button" *ngFor="let dateCode of filteredDateCodeOptions" (click)="dateCodeSearchText = dateCode; onDateCodeSelection(dateCode)">
-          {{ dateCode }}
-        </button>
-      </div>
-      <div class="sequence-inline" *ngIf="nextAvailableSequence">
-        Next Available Sequence: {{ nextAvailableSequence }}
-      </div>
-      <p class="sequence-missing" *ngIf="sequenceMissingMessage">{{ sequenceMissingMessage }}</p>
-      <button type="button" class="primary-action" *ngIf="sequenceMissingMessage" (click)="openAddCombinationDialog()">
-        Add New Combination
-      </button>
-    </div>
-  </section>
+      <section class="control-card" aria-label="Actions">
+        <div class="control-card-header">
+          <p class="eyebrow">ACTIONS</p>
+          <h2>Actions</h2>
+        </div>
+        <div class="action-grid">
+          <button type="button" class="primary-action" (click)="printReport()">Print / PDF</button>
+          <button type="button" class="primary-action" (click)="autoGenerateFilmIds()">Auto Generate Film IDs</button>
+          <label class="boundary-toggle">
+            <input type="checkbox" [(ngModel)]="autoCountEnabled" name="autoCountEnabled" />
+            Auto count
+          </label>
+          <button type="button" (click)="openSaveDialog()">Save</button>
+          <button type="button" (click)="openLoadDialog()">Load</button>
+          <button type="button" (click)="openUpdateDialog()">Update</button>
+          <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
+          <button type="button" class="export-action" (click)="exportExcel()">Export in Excel</button>
+        </div>
+        <div class="action-grid secondary-actions">
+          <button type="button" (click)="addPage()">Add Page</button>
+          <button type="button" class="quiet-action" [disabled]="!selectedDraftToLoad" (click)="openDeleteDraftDialog(selectedDraftToLoad)">
+            Delete
+          </button>
+          <button type="button" (click)="settingsOpen = !settingsOpen">Settings</button>
+          <button type="button" class="quiet-action" (click)="resetDraft()">Reset</button>
+        </div>
+        <div class="control-chips">
+          <label class="font-size-control">
+            Upper details
+            <input type="number" min="8" max="14" step="0.5" [(ngModel)]="upperDetailsFontSize" name="upperDetailsFontSize" />
+          </label>
+          <label class="font-size-control">
+            Upper line spacing
+            <input type="number" min="0.75" max="1.4" step="0.05" [(ngModel)]="upperDetailsLineHeight" name="upperDetailsLineHeight" (ngModelChange)="updateUpperDetailsLineHeight($event)" />
+          </label>
+          <label class="font-size-control">
+            Lower details
+            <input type="number" min="8" max="14" step="0.5" [(ngModel)]="lowerDetailsFontSize" name="lowerDetailsFontSize" />
+          </label>
+          <label class="boundary-toggle"> 
+            <input
+              type="checkbox"
+              [(ngModel)]="showPageBoundaries"
+              name="showPageBoundaries"
+              (ngModelChange)="schedulePageBoundaryUpdate()"
+            />
+            Layout Guide
+          </label>
+          <label class="font-size-control">
+            End of page shift (cm)
+            <input
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+              [(ngModel)]="pageBoundaryShiftCm"
+              name="pageBoundaryShiftCm"
+              (ngModelChange)="schedulePageBoundaryUpdate()"
+            />
+          </label>
+        </div>
+        <span class="validation-message" *ngIf="validationMessage">{{ validationMessage }}</span>
+        <span class="save-status-message" *ngIf="saveStatusMessage" [class.success]="saveStatusType === 'success'" [class.error]="saveStatusType === 'error'">
+          {{ saveStatusMessage }}
+        </span>
+        <span class="validation-message" *ngIf="filmGenerationMessage">{{ filmGenerationMessage }}</span>
+        <span class="page-overflow-warning" *ngIf="hasPageBoundaryOverflow">
+          Content below the red line will move to Page 2 when printed or exported.
+        </span>
+      </section>
+    </aside>
 
-  <section class="modal-backdrop" *ngIf="combinationDialogMode === 'addCombination'" (click)="closeCombinationDialog()">
-    <div class="modal-card" (click)="$event.stopPropagation()">
-      <h2>Add New Combination</h2>
-      <label>
-        Part Number
-        <input type="text" [ngModel]="partSearchText" name="modalPartNumber" readonly />
-      </label>
-      <label>
-        Date Code
-        <input type="text" [ngModel]="dateCodeSearchText" name="modalDateCode" readonly />
-      </label>
-      <label>
-        Starting Sequence
-        <input type="number" min="0" step="1" [(ngModel)]="startingSequence" name="modalStartingSequence" />
-      </label>
-      <p class="modal-message" *ngIf="combinationSaveMessage">{{ combinationSaveMessage }}</p>
-      <div class="modal-actions">
-        <button type="button" (click)="closeCombinationDialog()">Cancel</button>
-        <button type="button" class="primary-action" (click)="saveNewCombination()">Save Combination</button>
-      </div>
-    </div>
-  </section>
-
-  <section class="settings-panel" *ngIf="settingsOpen" aria-label="NABL RT Report settings">
-    <div class="settings-column" *ngFor="let entry of dropdownEntries; trackBy: trackByIndex">
-      <h2>{{ entry.setting.label }}</h2>
-      <div class="settings-default">
-        <label>Default</label>
-        <select
-          [ngModel]="entry.setting.defaultValue"
-          [name]="'defaultDropdown' + entry.key"
-          (ngModelChange)="updateDropdownDefault(entry.key, $event)"
-        >
-          <option value="">No default</option>
-          <option *ngFor="let option of entry.setting.options" [value]="option">{{ option }}</option>
-        </select>
-      </div>
-      <div class="settings-row" *ngFor="let option of entry.setting.options; let i = index; trackBy: trackByIndex">
-        <input
-          [(ngModel)]="entry.setting.options[i]"
-          [name]="'dropdownSetting' + entry.key + i"
-          (ngModelChange)="persistSettings()"
-        />
-        <button type="button" [disabled]="i === 0" (click)="moveDropdownOption(entry.key, i, -1)">Up</button>
-        <button type="button" [disabled]="i === entry.setting.options.length - 1" (click)="moveDropdownOption(entry.key, i, 1)">Down</button>
-        <button type="button" (click)="removeDropdownOption(entry.key, i)">Delete</button>
-      </div>
-      <button type="button" (click)="addDropdownOption(entry.key)">Add</button>
-    </div>
-
-    <div class="settings-column defaults-column">
-      <h2>Default Field Values</h2>
-      <div class="settings-row default-row" *ngFor="let entry of defaultValueEntries; trackBy: trackByIndex">
-        <label>{{ entry.key }}</label>
-        <input
-          [ngModel]="entry.value"
-          [name]="'defaultSetting' + entry.key"
-          (ngModelChange)="updateDefaultValue(entry.key, $event)"
-        />
-      </div>
-    </div>
-
-  </section>
-
-  <section class="report-stack" aria-label="NABL RT Report pages">
+    <section class="preview-panel" aria-label="Live report preview">
+      <section class="report-stack" aria-label="NABL RT Report pages">
     <article
       #reportPage
       class="rt-page"
+      [class.is-last-page]="isLastPage(pageIndex)"
       *ngFor="let page of pages; let pageIndex = index; trackBy: trackByIndex"
       [style.--upper-details-font-size]="upperDetailsFontSize + 'px'"
       [style.--upper-details-line-height]="upperDetailsLineHeight"
@@ -530,64 +485,65 @@
       </table>
 
       <div class="page-fill"></div>
+      <div class="footer-wrapper">
+        <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
+          <label class="remarks-line">
+            <span><input type="text" [(ngModel)]="remarksLabel" name="remarksLabel" /></span>
+            <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
+          </label>
 
-      <section class="last-page-footer" *ngIf="isLastPage(pageIndex)">
-        <label class="remarks-line">
-          <span><input type="text" [(ngModel)]="remarksLabel" name="remarksLabel" /></span>
-          <textarea [(ngModel)]="remarks" name="remarks" rows="1"></textarea>
-        </label>
-
-        <div class="abbreviation-section">
-          <strong><input type="text" [(ngModel)]="abbreviationLabel" name="abbreviationLabel" /></strong>
-          <div class="abbreviation-grid">
-            <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
-              <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
-                <span>{{ item.code }}</span>
-                <span>-</span>
-                <span>{{ item.description }}</span>
+          <div class="abbreviation-section">
+            <strong><input type="text" [(ngModel)]="abbreviationLabel" name="abbreviationLabel" /></strong>
+            <div class="abbreviation-grid">
+              <div class="abbreviation-row" *ngFor="let row of abbreviationRows; let rowIndex = index; trackBy: trackByIndex">
+                <div class="abbreviation-item" *ngFor="let item of row; trackBy: trackByIndex">
+                  <span>{{ item.code }}</span>
+                  <span>-</span>
+                  <span>{{ item.description }}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <section class="signature-grid">
-          <div>
-            <strong>Evaluated By</strong>
-            <span class="signature-person">
-              <select [(ngModel)]="evaluatedBy" name="evaluatedBy">
-                <option *ngFor="let option of settings.dropdowns['evaluatedBy'].options" [value]="option">{{ option }}</option>
-              </select>
-              <input [(ngModel)]="evaluatedByDesignation" name="evaluatedByDesignation" />
-            </span>
-          </div>
-          <div>
-            <strong>Reviewed & Authorized By</strong>
-            <span class="signature-person">
-              <select [(ngModel)]="reviewedBy" name="reviewedBy">
-                <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
-              </select>
-              <input [(ngModel)]="reviewedByDesignation" name="reviewedByDesignation" />
-            </span>
-          </div>
-          <div>
-            <strong>for Client</strong>
-            <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
-          </div>
-          <div>
-            <strong>for Inspecting Officer</strong>
-            <textarea [(ngModel)]="inspectingOfficer" name="inspectingOfficer" rows="5"></textarea>
-          </div>
+          <section class="signature-grid">
+            <div>
+              <strong>Evaluated By</strong>
+              <span class="signature-person">
+                <select [(ngModel)]="evaluatedBy" name="evaluatedBy">
+                  <option *ngFor="let option of settings.dropdowns['evaluatedBy'].options" [value]="option">{{ option }}</option>
+                </select>
+                <input [(ngModel)]="evaluatedByDesignation" name="evaluatedByDesignation" />
+              </span>
+            </div>
+            <div>
+              <strong>Reviewed & Authorized By</strong>
+              <span class="signature-person">
+                <select [(ngModel)]="reviewedBy" name="reviewedBy">
+                  <option *ngFor="let option of settings.dropdowns['reviewedBy'].options" [value]="option">{{ option }}</option>
+                </select>
+                <input [(ngModel)]="reviewedByDesignation" name="reviewedByDesignation" />
+              </span>
+            </div>
+            <div>
+              <strong>for Client</strong>
+              <textarea [(ngModel)]="clientSignature" name="clientSignature" rows="5"></textarea>
+            </div>
+            <div>
+              <strong>for Inspecting Officer</strong>
+              <textarea [(ngModel)]="inspectingOfficer" name="inspectingOfficer" rows="5"></textarea>
+            </div>
+          </section>
+
+          <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
+          <div class="end-report"><input type="text" [(ngModel)]="endOfReportLabel" name="endOfReportLabel" /></div>
         </section>
 
-        <textarea class="notes-field" [(ngModel)]="notes" name="notes" rows="4"></textarea>
-        <div class="end-report"><input type="text" [(ngModel)]="endOfReportLabel" name="endOfReportLabel" /></div>
-      </section>
-
-      <footer class="page-footer">
-        <span><input type="text" [(ngModel)]="footerPageLabelText" name="footerPageLabelText" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
-        <span><input type="text" [(ngModel)]="footerFormatNoText" name="footerFormatNoText" /> <input type="text" [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
-        <span><input type="text" [(ngModel)]="footerFirstIssueText" name="footerFirstIssueText" /> <input type="text" [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
-      </footer>
+        <footer class="page-footer">
+          <span><input type="text" [(ngModel)]="footerPageLabelText" name="footerPageLabelText" /> {{ pageIndex + 1 | number: '2.0-0' }} of {{ pageCount | number: '2.0-0' }}</span>
+          <span><input type="text" [(ngModel)]="footerFormatNoText" name="footerFormatNoText" /> <input type="text" [(ngModel)]="footerFormatNo" name="footerFormatNo" /></span>
+          <span><input type="text" [(ngModel)]="footerFirstIssueText" name="footerFirstIssueText" /> <input type="text" [(ngModel)]="footerFirstIssue" name="footerFirstIssue" /></span>
+        </footer>
+      </div>
 
        <!--  <div class="page-boundary-overlay" *ngIf="showPageBoundaries && layoutMode === 'edit'" aria-hidden="true">
           <div
@@ -607,6 +563,71 @@
           </ng-container>
         </div> -->
     </article>
+      </section>
+    </section>
+  </section>
+
+  <section class="modal-backdrop" *ngIf="combinationDialogMode === 'addCombination'" (click)="closeCombinationDialog()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <h2>Add New Combination</h2>
+      <label>
+        Part Number
+        <input type="text" [ngModel]="partSearchText" name="modalPartNumber" readonly />
+      </label>
+      <label>
+        Date Code
+        <input type="text" [ngModel]="dateCodeSearchText" name="modalDateCode" readonly />
+      </label>
+      <label>
+        Starting Sequence
+        <input type="number" min="0" step="1" [(ngModel)]="startingSequence" name="modalStartingSequence" />
+      </label>
+      <p class="modal-message" *ngIf="combinationSaveMessage">{{ combinationSaveMessage }}</p>
+      <div class="modal-actions">
+        <button type="button" (click)="closeCombinationDialog()">Cancel</button>
+        <button type="button" class="primary-action" (click)="saveNewCombination()">Save Combination</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-panel" *ngIf="settingsOpen" aria-label="NABL RT Report settings">
+    <div class="settings-column" *ngFor="let entry of dropdownEntries; trackBy: trackByIndex">
+      <h2>{{ entry.setting.label }}</h2>
+      <div class="settings-default">
+        <label>Default</label>
+        <select
+          [ngModel]="entry.setting.defaultValue"
+          [name]="'defaultDropdown' + entry.key"
+          (ngModelChange)="updateDropdownDefault(entry.key, $event)"
+        >
+          <option value="">No default</option>
+          <option *ngFor="let option of entry.setting.options" [value]="option">{{ option }}</option>
+        </select>
+      </div>
+      <div class="settings-row" *ngFor="let option of entry.setting.options; let i = index; trackBy: trackByIndex">
+        <input
+          [(ngModel)]="entry.setting.options[i]"
+          [name]="'dropdownSetting' + entry.key + i"
+          (ngModelChange)="persistSettings()"
+        />
+        <button type="button" [disabled]="i === 0" (click)="moveDropdownOption(entry.key, i, -1)">Up</button>
+        <button type="button" [disabled]="i === entry.setting.options.length - 1" (click)="moveDropdownOption(entry.key, i, 1)">Down</button>
+        <button type="button" (click)="removeDropdownOption(entry.key, i)">Delete</button>
+      </div>
+      <button type="button" (click)="addDropdownOption(entry.key)">Add</button>
+    </div>
+
+    <div class="settings-column defaults-column">
+      <h2>Default Field Values</h2>
+      <div class="settings-row default-row" *ngFor="let entry of defaultValueEntries; trackBy: trackByIndex">
+        <label>{{ entry.key }}</label>
+        <input
+          [ngModel]="entry.value"
+          [name]="'defaultSetting' + entry.key"
+          (ngModelChange)="updateDefaultValue(entry.key, $event)"
+        />
+      </div>
+    </div>
   </section>
 
   <div class="dialog-backdrop" *ngIf="dialogMode" role="presentation" (click)="closeDraftDialog()">

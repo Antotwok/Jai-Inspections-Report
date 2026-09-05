@@ -650,7 +650,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     if (previous) {
       if (previous.filmGroupId) {
-        const clonedGroup = this.cloneRowGroup(rows, previousVisibleIndex);
+        const clonedGroup = this.cloneRowGroup(rows, previousVisibleIndex, this.autoCountEnabled);
         clonedGroup.forEach((row) => {
           row.selected = false;
         });
@@ -748,7 +748,8 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   canCombineRow(pageIndex: number, rowIndex: number): boolean {
     const rows = this.pages[pageIndex].rows;
     const current = rows[rowIndex];
-    const next = rows[rowIndex + 1];
+    const span = this.rowGroupRowspan(pageIndex, rowIndex);
+    const next = rows[rowIndex + span];
     if (!current || !next) return false;
     return this.sameRowContext(current, next);
   }
@@ -756,13 +757,31 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
   combineWithNext(pageIndex: number, rowIndex: number): void {
     const rows = this.pages[pageIndex].rows;
     const current = rows[rowIndex];
-    const next = rows[rowIndex + 1];
+    const span = this.rowGroupRowspan(pageIndex, rowIndex);
+    const next = rows[rowIndex + span];
     if (!current || !next || !this.sameRowContext(current, next)) return;
 
-    const groupId = current.filmGroupId || next.filmGroupId || this.createFilmGroupId();
+    const groupId = current.filmGroupId || this.createFilmGroupId();
     this.captureHistory();
-    current.filmGroupId = groupId;
-    next.filmGroupId = groupId;
+    for (let i = rowIndex; i < rowIndex + span; i++) {
+      rows[i].filmGroupId = groupId;
+      rows[i].description = current.description;
+      delete rows[i].serialNo;
+    }
+    const oldNextGroupId = next.filmGroupId;
+    if (oldNextGroupId && oldNextGroupId !== groupId) {
+      rows
+        .filter((r) => r.filmGroupId === oldNextGroupId)
+        .forEach((r) => {
+          r.filmGroupId = groupId;
+          r.description = current.description;
+          delete r.serialNo;
+        });
+    } else {
+      next.filmGroupId = groupId;
+      next.description = current.description;
+      delete next.serialNo;
+    }
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -783,7 +802,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     this.captureHistory();
     rows
       .filter((candidate) => candidate.filmGroupId === groupId)
-      .forEach((candidate) => delete candidate.filmGroupId);
+      .forEach((candidate) => {
+        delete candidate.filmGroupId;
+        delete candidate.serialNo;
+      });
     this.clearRedoStack();
     this.schedulePageBoundaryUpdate();
   }
@@ -881,10 +903,11 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
   async exportExcel(): Promise<void> {
     try {
+      const reportPayload = await this.createReportPayload('NON_NABL', 'DRAFT');
       const response = await fetch(`${environment.apiUrl}/export-excel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ report: this.createReportPayload('NON_NABL', 'DRAFT') })
+        body: JSON.stringify({ report: reportPayload })
       });
 
       if (!response.ok) {
@@ -2644,6 +2667,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       cloned.filmGroupId = filmGroupId;
     }
     delete cloned.selected;
+    delete cloned.serialNo;
     return cloned;
   }
 
@@ -2668,7 +2692,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     return tokens.filter((token) => ABBREVIATION_DICTIONARY[token]);
   }
 
-  private cloneRowGroup(rows: GenericRtRow[], startIndex: number): GenericRtRow[] {
+  private cloneRowGroup(rows: GenericRtRow[], startIndex: number, autoCount = false): GenericRtRow[] {
     const sourceRow = rows[startIndex];
     if (!sourceRow) {
       return [this.createRow(this.generatedDescription(), '')];
@@ -2676,13 +2700,23 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
 
     const sourceGroupId = sourceRow.filmGroupId;
     if (!sourceGroupId) {
-      return [this.cloneRow(sourceRow)];
+      return [autoCount ? this.cloneRowWithAutoCount(sourceRow) : this.cloneRow(sourceRow)];
     }
 
     const groupRows = rows.filter((row) => row.filmGroupId === sourceGroupId);
     const newGroupId = this.createFilmGroupId();
+    const baseDescription = groupRows[0]?.description || sourceRow.description;
+    const nextDescription = autoCount ? this.incrementTrailingNumber(baseDescription) : baseDescription;
 
-    return groupRows.map((row) => this.cloneRow(row, newGroupId));
+    return groupRows.map((row) => {
+      const cloned = this.cloneRow(row, newGroupId);
+      if (autoCount) {
+        cloned.description = nextDescription;
+      }
+      delete cloned.serialNo;
+      delete cloned.selected;
+      return cloned;
+    });
   }
 
   private getSelectedRowIndexes(rows: GenericRtRow[]): number[] {
