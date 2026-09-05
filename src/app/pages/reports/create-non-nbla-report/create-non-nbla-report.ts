@@ -876,6 +876,7 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
     const html = `<!doctype html><html><head><base href="${location.origin}/">${styles}</head><body>${reportHtml}</body></html>`;
 
     try {
+      this.setAppStatus('Exporting PDF...', 'warning');
       const response = await fetch(`${environment.apiUrl}/export-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -895,9 +896,10 @@ export class CreateNonNblaReportComponent implements AfterViewInit, OnDestroy, O
       this.validationMessage = 'PDF exported successfully.';
       this.setAppStatus('PDF Exported Successfully', 'warning');
     } catch (error) {
-      this.validationMessage = 'Start the backend server, then try Export as PDF again.';
-      this.setAppStatus('Unable to Export Report', 'error');
-      console.error(error);
+      console.warn('Backend PDF export failed, falling back to browser print dialog:', error);
+      this.validationMessage = 'Opening print dialog — select "Save as PDF" to save your report.';
+      this.setAppStatus('Save as PDF', 'warning');
+      window.print();
     }
   }
 

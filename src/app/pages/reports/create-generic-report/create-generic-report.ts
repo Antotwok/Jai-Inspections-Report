@@ -644,8 +644,9 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
       URL.revokeObjectURL(link.href);
       this.validationMessage = 'PDF exported successfully.';
     } catch (error) {
-      this.validationMessage = 'Start the backend server, then try Export as PDF again.';
-      console.error(error);
+      console.warn('Backend PDF export failed, falling back to browser print dialog:', error);
+      this.validationMessage = 'Opening print dialog — select "Save as PDF" to save your report.';
+      window.print();
     }
   }
 

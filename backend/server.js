@@ -178,7 +178,7 @@ app.post('/api/reports', createReport);
 app.put('/api/reports/:id', updateReport);
 app.delete('/api/reports/:id', deleteReport);
 
-app.post('/api/export-pdf', async (req, res) => {
+app.post(['/api/export-pdf', '/export-pdf'], async (req, res) => {
   const { html } = req.body || {};
   if (!html) {
     res.status(400).send('Missing report HTML.');
@@ -189,10 +189,19 @@ app.post('/api/export-pdf', async (req, res) => {
   try {
     browser = await puppeteer.launch({
       headless: true,
-      args: process.env.RENDER ? ['--no-sandbox', '--disable-setuid-sandbox'] : []
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--font-render-hinting=none'
+      ]
     });
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: ['domcontentloaded', 'load'], timeout: 15000 });
+    try {
+      await page.evaluateHandle('document.fonts.ready');
+    } catch (_) {}
     await page.emulateMediaType('print');
     const pdf = await page.pdf({
       format: 'A4',
@@ -205,11 +214,11 @@ app.post('/api/export-pdf', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="rt-report.pdf"');
     res.send(pdf);
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Unable to export PDF.');
+    console.error('Puppeteer export-pdf error:', error);
+    res.status(500).send(error?.message || 'Unable to export PDF.');
   } finally {
     if (browser) {
-      await browser.close();
+      await browser.close().catch(() => {});
     }
   }
 });
