@@ -1280,9 +1280,9 @@ select:focus {
 }
 
 .signature-grid strong {
-  border-bottom: 1px solid #333333;
+  border-bottom: 1px solid transparent;
   padding: 1mm;
-  background: #fafbfa;
+  background: transparent;
   font-weight: 700;
 }
 
@@ -1324,7 +1324,7 @@ select:focus {
 /* ── Notes & end ── */
 .notes-field {
   display: block;
-  border-top: none;
+  border-top: 1px solid #333333;
   font-weight: 700;
   white-space: pre-line;
 }
