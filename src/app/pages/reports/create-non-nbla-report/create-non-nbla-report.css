@@ -1324,7 +1324,7 @@ select:focus {
 /* ── Notes & end ── */
 .notes-field {
   display: block;
-  border-top: 1px solid #333333;
+  border-top: none;
   font-weight: 700;
   white-space: pre-line;
 }
