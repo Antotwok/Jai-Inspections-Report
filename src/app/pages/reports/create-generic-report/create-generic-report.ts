@@ -650,6 +650,34 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
+  async exportWord(): Promise<void> {
+    try {
+      const reportPayload = this.createReportPayload('GENERIC' as any, 'DRAFT');
+      const response = await fetch(`${environment.apiUrl}/export-word`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report: reportPayload })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${this.pdfFileName()}.docx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      this.validationMessage = 'Word document exported successfully.';
+      this.showSaveStatus('Word document exported successfully.', 'success');
+    } catch (error) {
+      this.validationMessage = 'Start the backend server, then try Export in Word again.';
+      this.showSaveStatus('Unable to export Word document.', 'error');
+      console.error(error);
+    }
+  }
+
   async exportExcel(): Promise<void> {
     try {
       const reportPayload = this.createReportPayload('GENERIC' as any, 'DRAFT');

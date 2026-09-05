@@ -3,6 +3,7 @@ const cors = require('cors');
 const puppeteer = require('puppeteer');
 const ExcelJS = require('exceljs');
 const { generateInspectionReportExcel } = require('./utils/excelExporter');
+const { generateInspectionReportWord } = require('./utils/wordExporter');
 const path = require('path');
 const dotenv = require('dotenv');
 const { pool } = require('./database/db');
@@ -242,6 +243,27 @@ app.post(['/api/export-excel', '/export-excel'], async (req, res) => {
   } catch (error) {
     console.error('Error generating Excel export:', error);
     res.status(500).send('Unable to export Excel.');
+  }
+});
+
+app.post(['/api/export-word', '/export-word'], async (req, res) => {
+  const { report } = req.body || {};
+  if (!report || typeof report !== 'object') {
+    res.status(400).send('Missing report payload.');
+    return;
+  }
+
+  try {
+    const buffer = await generateInspectionReportWord(report);
+    const rawReportNo = report.report_no || report.report_json?.reportNo || 'rt-report';
+    const filename = String(rawReportNo).replace(/[\/\s\\:*?"<>|]+/g, '-').replace(/^-+|-+$/g, '');
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename || 'rt-report'}.docx"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Error generating Word export:', error);
+    res.status(500).send('Unable to export Word.');
   }
 });
 
