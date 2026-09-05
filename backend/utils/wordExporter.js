@@ -79,44 +79,49 @@ async function generateInspectionReportWord(reportData) {
   const templateBuffer = fs.readFileSync(templatePath);
   const zip = await JSZip.loadAsync(templateBuffer);
 
-  // 2. Extract values for upper details
+  // 2. Extract values for upper details matching Table 2 in NABL RT Report Example.docx
   const customerName = report.customer_name || reportJson.customerName || '';
-  const customerVal = getCustomerField('Customer Name') || (customerName ? `M/s. ${customerName}` : '');
-  const urlNo = getReportField('URL No') || '';
-  const principalCustomer = getCustomerField('Principal Customer') || '- - -';
-  const reportNo = report.report_no || reportJson.reportNo || getReportField('Report No') || '';
-  const workOrder = getCustomerField('Work Order') || '- - -';
-  const issueDate = formatDateDisplay(report.report_date || reportJson.issueDatePickerValue || getReportField('Issue Date'));
-  const partName = getCustomerField('Part Name') || '';
-  const examDate = formatDateDisplay(report.inspection_date || reportJson.examinationDatePickerValue || getReportField('Date of Examination'));
-  const partNo = report.part_number || getCustomerField('Part No') || '';
-  const dcNo = getReportField('DC No') || '';
-  const heatNo = getCustomerField('Heat No') || '';
-  const itemReceiptDate = formatDateDisplay(reportJson.itemReceiptDateTimePickerValue || getReportField('Item Receipt Date'));
-  const drawingNo = getCustomerField('Drawing No') || '';
-  const testLocation = getReportField('Test Location') || '';
-  const material = getCustomerField('Material') || '';
-  const source = getReportField('Source') || '';
-  const sizeThickness = getCustomerField('Size & Thickness') || '- - -';
-  const sourceStrength = getReportField('Source Strength') || '';
-  const areaTested = getCustomerField('Area Tested') || '';
-  const exposureTime = getReportField('Exposure Time') || '';
-  const leadScreens = getCustomerField('Lead Screens') || '';
-  const sourceSize = getReportField('Source Size') || '';
-  const exposureTech = getCustomerField('Exposure Technique') || '';
-  const filmClass = getReportField('Film Class') || '';
-  const testMethod = getCustomerField('Test Method') || '';
-  const devTemp = getReportField('Developing Temp') || '';
-  const acceptanceStd = getCustomerField('Acceptance Std') || '';
-  const penetrameter = getReportField('Penetrameter') || '';
-  const testPerformedBy = getCustomerField('Test Performed by') || '';
-  const testCarriedInPresence = getReportField('Test Carried in Presence') || '- - -';
+  let customerVal = getCustomerField('Customer Name');
+  if (!customerVal && customerName) {
+    customerVal = `M/s. ${customerName}`;
+  }
+  if (!customerVal) {
+    customerVal = 'M/s Perfect Material Testing Private Limited\n76 Irulawalan Nagar, Vadamadurai, Chennai – 68';
+  }
 
-  // 3. Pages & Data Rows
-  let pages = [];
-  if (Array.isArray(reportJson.pages) && reportJson.pages.length > 0) {
-    pages = reportJson.pages;
-  } else {
+  const urlNo = getReportField('URL No') || reportJson.urlNo || 'TC16435261000000078F';
+  const principalCustomer = getCustomerField('Principal Customer') || '- - -';
+  const reportNo = report.report_no || reportJson.reportNo || getReportField('Report No') || 'JIA / RT- 1432';
+  const workOrder = getCustomerField('Work Order') || '- - -';
+  const issueDate = formatDateDisplay(report.report_date || reportJson.issueDatePickerValue || getReportField('Issue Date')) || '01.08.2026';
+  const partName = getCustomerField('Part Name') || 'MS PLATE';
+  const examDate = formatDateDisplay(report.inspection_date || reportJson.examinationDatePickerValue || getReportField('Date of Examination')) || '01.08.2026';
+  const partNo = report.part_number || getCustomerField('Part No') || 'N.A.';
+  const dcNo = getReportField('DC No') || '1873';
+  const heatNo = getCustomerField('Heat No') || 'N.A.';
+  const itemReceiptDate = formatDateDisplay(reportJson.itemReceiptDateTimePickerValue || getReportField('Item Receipt Date')) || '31.07.2026';
+  const drawingNo = getCustomerField('Drawing No') || '- - -';
+  const testLocation = getReportField('Test Location') || 'Jai Inspection Agencies LLP';
+  const material = getCustomerField('Material') || 'IS2062 E250A';
+  const source = getReportField('Source') || 'X - Ray / IR-192 / Co-60';
+  const sizeThickness = getCustomerField('Size & Thickness') || '2mm.';
+  const sourceStrength = getReportField('Source Strength') || '--';
+  const areaTested = getCustomerField('Area Tested') || '100% X - Ray';
+  const exposTime = getReportField('Expos.*Time|Exposure Time|KV & Ma') || '3minutes / 120 & 3';
+  const leadScreens = getCustomerField('Lead Screens') || '0.15mm ( Front & Back )';
+  const sourceSize = getReportField('Source Size|Focal Spot') || '1.5 x 1.5mm.';
+  const exposureTechnique = getCustomerField('Exposure Technique') || 'S W S I';
+  const filmClass = getReportField('Film Class') || 'Agfa D7';
+  const testMethod = getCustomerField('Test Method') || 'ASME SEC.V, Edition 2025';
+  const penetrameter = getReportField('Penetrameter') || 'DIN : 1 A';
+  const acceptanceStd = getCustomerField('Acceptance Std') || 'ASME SEC.IX, Edition 2025';
+  const devTempTime = getReportField('Developing Temp') || '20°C / 5 Minutes';
+  const testPerformedBy = getCustomerField('Test Performed by') || reportJson.evaluatedBy || 'M. Samson (Radiographer)';
+  const testPresence = getReportField('Presence') || '---';
+
+  // 3. Extract Pages and Rows
+  let pages = Array.isArray(reportJson.pages) && reportJson.pages.length > 0 ? reportJson.pages : null;
+  if (!pages) {
     let rawRows = [];
     if (Array.isArray(report.report_rows) && report.report_rows.length > 0) {
       rawRows = report.report_rows;
@@ -127,7 +132,7 @@ async function generateInspectionReportWord(reportData) {
   }
 
   // 4. Remarks & Abbreviation & Signatures
-  const remarks = reportJson.remarks || '---';
+  const remarks = reportJson.remarks || '- - -';
   let abbrText = '';
   if (reportJson.abbreviationLeft || reportJson.abbreviationRight) {
     abbrText = `${reportJson.abbreviationLeft || ''} ${reportJson.abbreviationRight || ''}`.trim();
@@ -135,364 +140,390 @@ async function generateInspectionReportWord(reportData) {
     abbrText = reportJson.abbreviationRows.flat().map(i => `${i.code || ''} - ${i.description || ''}`).join('   ');
   }
   if (!abbrText) {
-    abbrText = 'NSD - No Significant Defect';
+    abbrText = 'N S D – NO SIGNIFICANT DEFECT';
   }
 
-  const evaluatedBy = reportJson.evaluatedBy || 'M. Samson';
+  const evaluatedBy = reportJson.evaluatedBy || 'C. ATHILINGAM';
   const evaluatedByDesig = reportJson.evaluatedByDesignation || 'NDT LEVEL II';
-  const reviewedBy = reportJson.reviewedBy || 'E. Viola';
+  const reviewedBy = reportJson.reviewedBy || 'E. VIOLA';
   const reviewedByDesig = reportJson.reviewedByDesignation || 'AUTHORIZED SIGNATORY';
   const clientSignature = reportJson.clientSignature || '';
   const inspectingOfficer = reportJson.inspectingOfficer || '';
-
   const totalPages = pages.length;
 
-  // Helper to build Upper Details Table (Rows 0 to 14)
-  const buildUpperDetailsRows = () => {
-    return `
-      <!-- Row 0: Customer Name & Address / URL No -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="2038" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Customer Name &amp; Address </w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>*</w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>:</w:t></w:r>
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4253" w:type="dxa"/><w:gridSpan w:val="6"/><w:vAlign w:val="center"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            ${toRuns(customerVal)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/><w:vAlign w:val="center"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">URL No : </w:t></w:r>
-            ${toRuns(urlNo)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 1: Principal Customer / Report No -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Principal Customer </w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>*</w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">       : </w:t></w:r>
-            ${toRuns(principalCustomer)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Report No                  : </w:t></w:r>
-            ${toRuns(reportNo)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 2: Work Order / Issue Date -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Work Order No &amp; Date </w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>*</w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve"> : </w:t></w:r>
-            ${toRuns(workOrder)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Issue Date                  : </w:t></w:r>
-            ${toRuns(issueDate)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 3: Part Name / Date of Examination -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Part Name </w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>*</w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">                   : </w:t></w:r>
-            ${toRuns(partName)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Date of Examination : </w:t></w:r>
-            ${toRuns(examDate)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 4: Part No / DC No -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Part No </w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>*</w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">                     : </w:t></w:r>
-            ${toRuns(partNo)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">DC No                         : </w:t></w:r>
-            ${toRuns(dcNo)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 5: Heat No / Item Receipt Date -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Heat No </w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>*</w:t></w:r>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">                   : </w:t></w:r>
-            ${toRuns(heatNo)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Item Receipt Date      : </w:t></w:r>
-            ${toRuns(itemReceiptDate)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 6: Drawing No / Test Location -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Drawing No.*             : </w:t></w:r>
-            ${toRuns(drawingNo)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Location             : </w:t></w:r>
-            ${toRuns(testLocation)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 7: Material / Source -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Material *                   : </w:t></w:r>
-            ${toRuns(material)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Source                         : </w:t></w:r>
-            ${toRuns(source)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 8: Size & Thickness / Source Strength -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Size &amp; Thickness*     : </w:t></w:r>
-            ${toRuns(sizeThickness)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Source Strength          : </w:t></w:r>
-            ${toRuns(sourceStrength)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 9: Area Tested / Exposure Time -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Area Tested *             : </w:t></w:r>
-            ${toRuns(areaTested)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Exposure Time            : </w:t></w:r>
-            ${toRuns(exposureTime)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 10: Lead Screens / Source Size -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Lead Screens              : </w:t></w:r>
-            ${toRuns(leadScreens)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Source Size / Focal Spot : </w:t></w:r>
-            ${toRuns(sourceSize)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 11: Exposure Technique / Film Class -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Exposure Technique  : </w:t></w:r>
-            ${toRuns(exposureTech)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Film Class &amp; Brand     : </w:t></w:r>
-            ${toRuns(filmClass)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 12: Test Method / Developing Temp -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Method *            : </w:t></w:r>
-            ${toRuns(testMethod)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Developing Temp / Time : </w:t></w:r>
-            ${toRuns(devTemp)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 13: Acceptance Std / Penetrameter -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Acceptance Std.*       : </w:t></w:r>
-            ${toRuns(acceptanceStd)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Penetrameter               : </w:t></w:r>
-            ${toRuns(penetrameter)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-
-      <!-- Row 14: Test Performed by / Test Carried in Presence of -->
-      <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:tc>
-          <w:tcPr><w:tcW w:w="6291" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Performed by     : </w:t></w:r>
-            ${toRuns(testPerformedBy)}
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr><w:tcW w:w="4252" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
-          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Carried in Presence of : </w:t></w:r>
-            ${toRuns(testCarriedInPresence)}
-          </w:p>
-        </w:tc>
-      </w:tr>
-    `;
-  };
-
-  // Helper to build Table Header (Row 15)
-  const buildTableHeaderRow = () => `
+  // Helper to build Upper Details Rows matching Table 2 in NABL RT Report Example.docx
+  const buildUpperDetailsRows = () => `
+    <!-- Row 1: Customer Name & Address / URL No -->
     <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-      <w:trPr><w:trHeight w:val="413"/></w:trPr>
-      <w:tc><w:tcPr><w:tcW w:w="451" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Sr.No</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="2721" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Description</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="993" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Thickness</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="708" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Segment</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>S.F.D</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Density</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="992" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Sensitivity</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="851" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Film Size</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="2409" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Observations</w:t></w:r></w:p></w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="1706" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Customer Name &amp; </w:t></w:r>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Address * :</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4160" w:type="dxa"/><w:gridSpan w:val="6"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          ${toRuns(customerVal)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">URL No : </w:t></w:r>
+          ${toRuns(urlNo)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 2: Principal Customer / Report No -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:tabs><w:tab w:val="right" w:pos="6075"/></w:tabs><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Principal Customer * : </w:t></w:r>
+          ${toRuns(principalCustomer)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Report No                  : </w:t></w:r>
+          ${toRuns(reportNo)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 3: Work Order / Issue Date -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Work Order No &amp; Date * : </w:t></w:r>
+          ${toRuns(workOrder)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Issue Date                 : </w:t></w:r>
+          ${toRuns(issueDate)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 4: Part Name / Date of Examination -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Part Name *             : </w:t></w:r>
+          ${toRuns(partName)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Date of Examination : </w:t></w:r>
+          ${toRuns(examDate)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 5: Part No / DC No -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Part No *                  : </w:t></w:r>
+          ${toRuns(partNo)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">DC No                        : </w:t></w:r>
+          ${toRuns(dcNo)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 6: Heat No / Item Receipt Date -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:tcBorders><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Heat No *                  : </w:t></w:r>
+          ${toRuns(heatNo)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Item Receipt Date     : </w:t></w:r>
+          ${toRuns(itemReceiptDate)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 7: Drawing No / Test Location -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:trPr><w:trHeight w:val="192"/></w:trPr>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Drawing No.*            : </w:t></w:r>
+          ${toRuns(drawingNo)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Location             : </w:t></w:r>
+          ${toRuns(testLocation)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 8: Material / Source -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Material *                 : </w:t></w:r>
+          ${toRuns(material)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Source                       : </w:t></w:r>
+          ${toRuns(source)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 9: Size & Thickness / Source Strength -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Size &amp; Thickness*    : </w:t></w:r>
+          ${toRuns(sizeThickness)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Source Strength          : </w:t></w:r>
+          ${toRuns(sourceStrength)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 10: Area Tested / Expos. Time / KV & Ma -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Area Tested *           : </w:t></w:r>
+          ${toRuns(areaTested)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Expos. Time / KV &amp; Ma : </w:t></w:r>
+          ${toRuns(exposTime)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 11: Lead Screens / Source Size -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Lead Screens            : </w:t></w:r>
+          ${toRuns(leadScreens)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Source Size / Focal Spot: </w:t></w:r>
+          ${toRuns(sourceSize)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 12: Exposure Technique / Film Class -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Exposure Technique : </w:t></w:r>
+          ${toRuns(exposureTechnique)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Film Class &amp; Brand     : </w:t></w:r>
+          ${toRuns(filmClass)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 13: Test Method / Penetrameter -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test  Method   *                  : </w:t></w:r>
+          ${toRuns(testMethod)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Penetrameter                     : </w:t></w:r>
+          ${toRuns(penetrameter)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 14: Acceptance Std / Developing Temp / Time -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Acceptance Std .  *             : </w:t></w:r>
+          ${toRuns(acceptanceStd)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Developing Temp /  Time  : </w:t></w:r>
+          ${toRuns(devTempTime)}
+        </w:p>
+      </w:tc>
+    </w:tr>
+
+    <!-- Row 15: Test Performed by / Test Carried in Presence of -->
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:tc>
+        <w:tcPr><w:tcW w:w="5866" w:type="dxa"/><w:gridSpan w:val="8"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Performed by            : </w:t></w:r>
+          ${toRuns(testPerformedBy)}
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="4772" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Test Carried in Presence  of : </w:t></w:r>
+          ${toRuns(testPresence)}
+        </w:p>
+      </w:tc>
     </w:tr>
   `;
 
-  // Helper to build Single Data Row
-  const buildDataRow = (r, isMerged, isMergeStart) => {
-    const vMergeSr = isMergeStart ? '<w:vMerge w:val="restart"/>' : (isMerged ? '<w:vMerge/>' : '');
-    const vMergeDesc = isMergeStart ? '<w:vMerge w:val="restart"/>' : (isMerged ? '<w:vMerge/>' : '');
+  const buildTableHeaderRow = () => `
+    <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
+      <w:trPr><w:trHeight w:val="524"/></w:trPr>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="451" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Sr. No</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="2154" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Description</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="851" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Thick ness</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Segment</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="708" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>S.F.D</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="993" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Density</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="850" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="17"/><w:szCs w:val="17"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="17"/><w:szCs w:val="17"/></w:rPr><w:t>Sensitivi ty</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="992" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Film Size</w:t></w:r>
+        </w:p>
+      </w:tc>
+      <w:tc>
+        <w:tcPr><w:tcW w:w="2930" w:type="dxa"/><w:gridSpan w:val="2"/><w:vAlign w:val="center"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Observations</w:t></w:r>
+        </w:p>
+      </w:tc>
+    </w:tr>
+  `;
 
-    const serialText = isMerged && !isMergeStart ? '' : String(r.serialNo || '');
-    const descText = isMerged && !isMergeStart ? '' : String(r.description || '');
+  const buildDataRow = (r, isMerged, isMergeStart) => {
+    const vMergeXml = isMerged ? (isMergeStart ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '';
 
     return `
       <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-        <w:trPr><w:trHeight w:val="290"/></w:trPr>
-        <!-- Col 0: Sr No -->
+        <w:trPr><w:trHeight w:val="222"/></w:trPr>
+        <!-- Col 0: Sr. No -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="451" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/>${vMergeSr}</w:tcPr>
+          <w:tcPr><w:tcW w:w="451" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/>${vMergeXml}</w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            ${toRuns(serialText)}
+            ${toRuns(!isMerged || isMergeStart ? String(r.serialNo || '') : '')}
           </w:p>
         </w:tc>
 
         <!-- Col 1: Description -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="2721" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/>${vMergeDesc}</w:tcPr>
+          <w:tcPr><w:tcW w:w="2154" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/>${vMergeXml}</w:tcPr>
           <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            ${toRuns(descText)}
+            ${toRuns(!isMerged || isMergeStart ? r.description : '')}
           </w:p>
         </w:tc>
 
         <!-- Col 2: Thickness -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="993" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="851" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/>${vMergeXml}</w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            ${toRuns(r.thickness || '')}
+            ${toRuns(!isMerged || isMergeStart ? r.thickness : '')}
           </w:p>
         </w:tc>
 
         <!-- Col 3: Segment -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="708" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
             ${toRuns(r.segment || '')}
           </w:p>
@@ -500,15 +531,15 @@ async function generateInspectionReportWord(reportData) {
 
         <!-- Col 4: S.F.D -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="708" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-            ${toRuns(r.sfd !== undefined ? r.sfd : (r.sfdValue || ''))}
+            ${toRuns(r.sfd !== undefined ? r.sfd : (r.sfdValue || '24”'))}
           </w:p>
         </w:tc>
 
         <!-- Col 5: Density -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="993" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
             ${toRuns(r.density || '')}
           </w:p>
@@ -516,7 +547,7 @@ async function generateInspectionReportWord(reportData) {
 
         <!-- Col 6: Sensitivity -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="992" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="850" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
             ${toRuns(r.sensitivity || '')}
           </w:p>
@@ -524,7 +555,7 @@ async function generateInspectionReportWord(reportData) {
 
         <!-- Col 7: Film Size -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="851" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="992" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
             ${toRuns(r.filmSize || '')}
           </w:p>
@@ -532,8 +563,8 @@ async function generateInspectionReportWord(reportData) {
 
         <!-- Col 8: Observations -->
         <w:tc>
-          <w:tcPr><w:tcW w:w="2409" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
-          <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
+          <w:tcPr><w:tcW w:w="2930" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders><w:vAlign w:val="center"/></w:tcPr>
+          <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
             ${toRuns(r.observations || r.observation || '')}
           </w:p>
         </w:tc>
@@ -541,29 +572,27 @@ async function generateInspectionReportWord(reportData) {
     `;
   };
 
-  // Helper to build Blank Data Row
   const buildBlankRow = () => `
     <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-      <w:trPr><w:trHeight w:val="290"/></w:trPr>
-      <w:tc><w:tcPr><w:tcW w:w="451" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="2721" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="993" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:trPr><w:trHeight w:val="222"/></w:trPr>
+      <w:tc><w:tcPr><w:tcW w:w="451" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="2154" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="851" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
       <w:tc><w:tcPr><w:tcW w:w="708" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="709" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="992" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="851" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="2409" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="993" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="850" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="992" w:type="dxa"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="2930" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p></w:tc>
     </w:tr>
   `;
 
-  // Helper to build Remarks, Abbreviation & Signature Rows
   const buildBottomRows = () => `
     <!-- Remarks Row -->
     <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
-      <w:trPr><w:trHeight w:val="288"/></w:trPr>
+      <w:trPr><w:trHeight w:val="292"/></w:trPr>
       <w:tc>
-        <w:tcPr><w:tcW w:w="10543" w:type="dxa"/><w:gridSpan w:val="13"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:tcPr><w:tcW w:w="10638" w:type="dxa"/><w:gridSpan w:val="13"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
         <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
           <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">Remarks: </w:t></w:r>
           ${toRuns(remarks)}
@@ -575,9 +604,9 @@ async function generateInspectionReportWord(reportData) {
     <w:tr w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidTr="00D6399E">
       <w:trPr><w:trHeight w:val="292"/></w:trPr>
       <w:tc>
-        <w:tcPr><w:tcW w:w="10543" w:type="dxa"/><w:gridSpan w:val="13"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:tcPr><w:tcW w:w="10638" w:type="dxa"/><w:gridSpan w:val="13"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
         <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">ABBREVIATION : </w:t></w:r>
+          <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">  ABBREVIATION :   </w:t></w:r>
           ${toRuns(abbrText)}
         </w:p>
       </w:tc>
@@ -590,16 +619,16 @@ async function generateInspectionReportWord(reportData) {
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Evaluated By</w:t></w:r></w:p>
       </w:tc>
       <w:tc>
-        <w:tcPr><w:tcW w:w="3402" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
+        <w:tcPr><w:tcW w:w="3289" w:type="dxa"/><w:gridSpan w:val="5"/></w:tcPr>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Reviewed &amp; Authorized By</w:t></w:r></w:p>
       </w:tc>
       <w:tc>
-        <w:tcPr><w:tcW w:w="1785" w:type="dxa"/><w:gridSpan w:val="3"/></w:tcPr>
+        <w:tcPr><w:tcW w:w="1898" w:type="dxa"/><w:gridSpan w:val="3"/></w:tcPr>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>for Client</w:t></w:r></w:p>
       </w:tc>
       <w:tc>
-        <w:tcPr><w:tcW w:w="2071" w:type="dxa"/></w:tcPr>
-        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">for Inspecting  Officer</w:t></w:r></w:p>
+        <w:tcPr><w:tcW w:w="2166" w:type="dxa"/></w:tcPr>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">for  Inspecting  Officer</w:t></w:r></w:p>
       </w:tc>
     </w:tr>
 
@@ -611,50 +640,53 @@ async function generateInspectionReportWord(reportData) {
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>for JAI INSPECTION AGENCIES LLP</w:t></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
+        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>${escapeXml(evaluatedBy)}</w:t></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>${escapeXml(evaluatedByDesig)}</w:t></w:r></w:p>
       </w:tc>
       <w:tc>
-        <w:tcPr><w:tcW w:w="3402" w:type="dxa"/><w:gridSpan w:val="5"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
-        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>For JAI INSPECTION AGENCIES LLP</w:t></w:r></w:p>
+        <w:tcPr><w:tcW w:w="3289" w:type="dxa"/><w:gridSpan w:val="5"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="17"/><w:szCs w:val="17"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="17"/><w:szCs w:val="17"/></w:rPr><w:t>For JAI INSPECTION AGENCIES LLP</w:t></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
-        <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
+        <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="12"/><w:szCs w:val="12"/></w:rPr></w:pPr></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>${escapeXml(reviewedBy)}</w:t></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>${escapeXml(reviewedByDesig)}</w:t></w:r></w:p>
       </w:tc>
       <w:tc>
-        <w:tcPr><w:tcW w:w="1785" w:type="dxa"/><w:gridSpan w:val="3"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:tcPr><w:tcW w:w="1898" w:type="dxa"/><w:gridSpan w:val="3"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
         <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>${toRuns(clientSignature)}</w:p>
       </w:tc>
       <w:tc>
-        <w:tcPr><w:tcW w:w="2071" w:type="dxa"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
+        <w:tcPr><w:tcW w:w="2166" w:type="dxa"/><w:tcBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tcBorders></w:tcPr>
         <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>${toRuns(inspectingOfficer)}</w:p>
       </w:tc>
     </w:tr>
   `;
 
   // Helper to build Notes and End of Page
-  const buildNotesAndPageEnd = (pageIndex, isLastPage) => `
+  const buildNotesAndPageEnd = (pageIndex) => `
     <w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
       <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Note :</w:t></w:r>
       <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve"> 1.  Observation confirms to the above acceptance standard as confirmed by customer</w:t></w:r>
     </w:p>
     <w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>2.  “ * ”</w:t></w:r>
+      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>2.  “ * ”</w:t></w:r>
       <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve"> Denotes details provided by customer</w:t></w:r>
     </w:p>
     <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">3.  Results are related to Test item only.  Any manual corrections will be invalid.  The Test report shall not be reproduced without the written consent from M/s. Jai Inspection Agencies LLP</w:t></w:r>
+      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">3.  Results are related to Test item only.  Any manual corrections will be invalid.  The Test report shall not be reproduced    without the written consent from M/s. Jai Inspection Agencies LLP </w:t></w:r>
     </w:p>
     <w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr>
-      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Page ${pageIndex + 1} of ${totalPages}</w:t></w:r>
-      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:tab/><w:t xml:space="preserve">                                                  ****      End of Report      ****</w:t></w:r>
+      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Page${pageIndex + 1} of ${totalPages}</w:t></w:r>
+      <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve">                                                           ****      End of Report      **** </w:t></w:r>
     </w:p>
   `;
 
   // 5. Construct Document XML
   let bodyContent = '';
-
   let currentSerial = 1;
 
   for (let pIdx = 0; pIdx < pages.length; pIdx++) {
@@ -663,23 +695,30 @@ async function generateInspectionReportWord(reportData) {
 
     // Title
     bodyContent += `
-      <w:p><w:pPr><w:ind w:left="2880" w:firstLine="720"/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr></w:pPr>
-        <w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr><w:t>RADIOGRAPHY TEST REPORT</w:t></w:r>
+      <w:p w14:paraId="6A42571C" w14:textId="77777777" w:rsidR="0028067E" w:rsidRPr="00237ED3" w:rsidRDefault="0028067E" w:rsidP="0028067E">
+        <w:pPr>
+          <w:ind w:left="2880" w:firstLine="720"/>
+          <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr>
+        </w:pPr>
+        <w:r w:rsidRPr="00237ED3">
+          <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr>
+          <w:t>RADIOGRAPHY TEST REPORT</w:t>
+        </w:r>
       </w:p>
     `;
 
-    // Table
+    // Table 2 Grid & Properties
     bodyContent += `
       <w:tbl>
         <w:tblPr>
           <w:tblStyle w:val="TableGrid"/>
-          <w:tblW w:w="10543" w:type="dxa"/>
+          <w:tblW w:w="10638" w:type="dxa"/>
           <w:tblInd w:w="-342" w:type="dxa"/>
           <w:tblLayout w:type="fixed"/>
           <w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>
         </w:tblPr>
         <w:tblGrid>
-          <w:gridCol w:w="451"/><w:gridCol w:w="1587"/><w:gridCol w:w="1134"/><w:gridCol w:w="113"/><w:gridCol w:w="880"/><w:gridCol w:w="708"/><w:gridCol w:w="709"/><w:gridCol w:w="709"/><w:gridCol w:w="396"/><w:gridCol w:w="596"/><w:gridCol w:w="851"/><w:gridCol w:w="338"/><w:gridCol w:w="2071"/>
+          <w:gridCol w:w="451"/><w:gridCol w:w="1255"/><w:gridCol w:w="899"/><w:gridCol w:w="680"/><w:gridCol w:w="171"/><w:gridCol w:w="709"/><w:gridCol w:w="708"/><w:gridCol w:w="993"/><w:gridCol w:w="708"/><w:gridCol w:w="142"/><w:gridCol w:w="992"/><w:gridCol w:w="764"/><w:gridCol w:w="2166"/>
         </w:tblGrid>
     `;
 
@@ -714,7 +753,7 @@ async function generateInspectionReportWord(reportData) {
         description: row.film_identification || row.description || '',
         thickness: row.thickness || '',
         segment: row.segment || '',
-        sfd: row.sfd !== undefined ? row.sfd : (row.sfdValue || getCustomerField('S\\.?F\\.?D') || '20"'),
+        sfd: row.sfd !== undefined ? row.sfd : (row.sfdValue || getCustomerField('S\\.?F\\.?D') || '24”'),
         density: row.density || '',
         sensitivity: row.sensitivity || '',
         filmSize: row.film_size || row.filmSize || '',
@@ -725,8 +764,8 @@ async function generateInspectionReportWord(reportData) {
       dataRowCount++;
     }
 
-    // Minimum rows padding so the table does not collapse
-    const minRows = 5;
+    // Minimum rows padding (matching Table 2's spacing in the example)
+    const minRows = Math.max(3, dataRowCount);
     for (let pad = dataRowCount; pad < minRows; pad++) {
       bodyContent += buildBlankRow();
     }
@@ -737,7 +776,7 @@ async function generateInspectionReportWord(reportData) {
     bodyContent += `</w:tbl>`;
 
     // Notes and Page Footer
-    bodyContent += buildNotesAndPageEnd(pIdx, pIdx === pages.length - 1);
+    bodyContent += buildNotesAndPageEnd(pIdx);
 
     // If not last page, insert page break
     if (pIdx < pages.length - 1) {
@@ -757,33 +796,37 @@ async function generateInspectionReportWord(reportData) {
     </w:sectPr>
   `;
 
-  // 6. Complete Document XML
-  const fullDocumentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  const newDocXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:cx2="http://schemas.microsoft.com/office/drawing/2015/10/21/chartex" xmlns:cx3="http://schemas.microsoft.com/office/drawing/2016/5/9/chartex" xmlns:cx4="http://schemas.microsoft.com/office/drawing/2016/5/10/chartex" xmlns:cx5="http://schemas.microsoft.com/office/drawing/2016/5/11/chartex" xmlns:cx6="http://schemas.microsoft.com/office/drawing/2016/5/12/chartex" xmlns:cx7="http://schemas.microsoft.com/office/drawing/2016/5/13/chartex" xmlns:cx8="http://schemas.microsoft.com/office/drawing/2016/5/14/chartex" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:aink="http://schemas.microsoft.com/office/drawing/2016/ink" xmlns:am3d="http://schemas.microsoft.com/office/drawing/2017/model3d" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:oel="http://schemas.microsoft.com/office/2019/extlst" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" xmlns:w16cex="http://schemas.microsoft.com/office/word/2018/wordml/cex" xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid" xmlns:w16="http://schemas.microsoft.com/office/word/2018/wordml" xmlns:w16du="http://schemas.microsoft.com/office/word/2023/wordml/word16du" xmlns:w16sdtdh="http://schemas.microsoft.com/office/word/2020/wordml/sdtdatahash" xmlns:w16sdtfl="http://schemas.microsoft.com/office/word/2024/wordml/sdtformatlock" xmlns:w16se="http://schemas.microsoft.com/office/word/2015/wordml/symex" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk" xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" mc:Ignorable="w14 w15 w16se w16cid w16 w16cex w16sdtdh w16sdtfl w16du wp14">
   <w:body>
     ${bodyContent}
   </w:body>
 </w:document>`;
 
-  zip.file('word/document.xml', fullDocumentXml);
+  zip.file('word/document.xml', newDocXml);
 
-  // 7. Update footer format text if customized
-  if (reportJson.footerFormatNo || reportJson.footerFirstIssue) {
-    let footerXml = await zip.file('word/footer1.xml').async('string');
-    if (reportJson.footerFormatNo) {
-      footerXml = footerXml.replace(/JIA \/ F\/010/g, escapeXml(reportJson.footerFormatNo));
-    }
-    if (reportJson.footerFirstIssue) {
-      footerXml = footerXml.replace(/26-11-2025/g, escapeXml(reportJson.footerFirstIssue));
-    }
-    zip.file('word/footer1.xml', footerXml);
-  }
+  // Update footer1.xml matching exact footer
+  const footerFormat = reportJson.footerFormatNo || 'Format No: JIA / F/01B - REV 01';
+  const footerFirst = reportJson.footerFirstIssue || 'First Issue: 24.11.2025';
+  const footerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:p>
+    <w:pPr>
+      <w:pStyle w:val="Footer"/>
+      <w:tabs><w:tab w:val="right" w:pos="10080"/></w:tabs>
+      <w:rPr><w:rFonts w:ascii="Bookman Old Style" w:hAnsi="Bookman Old Style"/><w:sz w:val="14"/><w:szCs w:val="14"/></w:rPr>
+    </w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Bookman Old Style" w:hAnsi="Bookman Old Style"/><w:sz w:val="14"/><w:szCs w:val="14"/></w:rPr><w:t xml:space="preserve">${escapeXml(footerFormat)}</w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Bookman Old Style" w:hAnsi="Bookman Old Style"/><w:sz w:val="14"/><w:szCs w:val="14"/></w:rPr><w:tab/><w:t xml:space="preserve">${escapeXml(footerFirst)}</w:t></w:r>
+  </w:p>
+</w:ftr>`;
 
-  // 8. Generate Buffer
+  zip.file('word/footer1.xml', footerXml);
+
   return await zip.generateAsync({
     type: 'nodebuffer',
     compression: 'DEFLATE',
-    compressionOptions: { level: 6 }
+    compressionOptions: { level: 9 }
   });
 }
 
