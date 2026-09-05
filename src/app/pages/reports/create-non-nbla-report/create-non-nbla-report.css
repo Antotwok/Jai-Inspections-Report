@@ -1280,7 +1280,9 @@ select:focus {
 }
 
 .signature-grid strong {
+  border-bottom: 1px solid #333333;
   padding: 1mm;
+  background: #fafbfa;
   font-weight: 700;
 }
 
