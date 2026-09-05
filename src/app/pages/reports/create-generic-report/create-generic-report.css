@@ -1246,7 +1246,7 @@ select:focus {
 .signature-grid {
   display: grid;
   grid-template-columns: 1.25fr 1.55fr .75fr .8fr;
-  min-height: 20mm;
+  min-height: 28mm;
   border-bottom: 1px solid #333333;
 }
 
@@ -1255,7 +1255,7 @@ select:focus {
   grid-template-rows: auto 1fr;
   border-right: 1px solid #333333;
   text-align: center;
-  min-height: 20mm;
+  min-height: 28mm;
 }
 
 .signature-grid div:last-child {
