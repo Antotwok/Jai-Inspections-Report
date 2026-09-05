@@ -1265,7 +1265,7 @@ select:focus {
 .signature-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1.75fr;
-  min-height: 28mm;
+  min-height: 24mm;
 }
 
 .signature-grid div {
@@ -1273,7 +1273,6 @@ select:focus {
   grid-template-rows: auto 1fr;
   border-right: 1px solid #333333;
   text-align: center;
-  min-height: 28mm;
 }
 
 .signature-grid div:last-child {
@@ -1281,9 +1280,9 @@ select:focus {
 }
 
 .signature-grid strong {
-  border-bottom: 1px solid #333333;
-  padding: .5mm 1mm;
-  background: #fafbfa;
+  border-bottom: none !important;
+  padding: 1mm;
+  background: transparent;
   font-weight: 700;
 }
 
@@ -1300,7 +1299,6 @@ select:focus {
   display: grid;
   gap: 0;
   width: calc(100% - 4mm);
-  align-content: end;
 }
 
 .signature-person select {
@@ -1312,14 +1310,14 @@ select:focus {
 .signature-grid select,
 .signature-grid textarea.multiline-dropdown {
   min-height: 0;
-  margin-top: 2mm;
+  margin-top: 8mm;
   border-color: var(--line-2);
   border-radius: var(--radius-sm);
   font-weight: 700;
 }
 
 .signature-grid input {
-  min-height: 5mm;
+  min-height: 6mm;
   font-weight: 700;
 }
 
