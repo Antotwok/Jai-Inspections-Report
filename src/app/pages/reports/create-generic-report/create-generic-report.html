@@ -461,7 +461,7 @@
               </label> -->
             </td>
             <td *ngIf="showDescriptionCell(pageIndex, rowIndex)" [attr.rowspan]="rowGroupRowspan(pageIndex, rowIndex)">
-              <textarea [(ngModel)]="row.description" [name]="'desc' + pageIndex + '-' + rowIndex" rows="4"></textarea>
+              <textarea [(ngModel)]="row.description" [name]="'desc' + pageIndex + '-' + rowIndex" rows="4" maxlength="3000"></textarea>
             </td>
             <td><input [(ngModel)]="row.thickness" [name]="'thick' + pageIndex + '-' + rowIndex" /></td>
             <td><input [(ngModel)]="row.segment" [name]="'segment' + pageIndex + '-' + rowIndex" /></td>

@@ -525,6 +525,7 @@
                     [name]="'desc' + pageIndex + '-' + rowIndex"
                     [rows]="filmIdentificationRows(row)"
                     [style.min-height]="filmIdentificationMinHeight(row)"
+                    maxlength="3000"
                   ></textarea>
                 </td>
                 <td><input [(ngModel)]="row.thickness" [name]="'thick' + pageIndex + '-' + rowIndex" /></td>

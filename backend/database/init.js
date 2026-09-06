@@ -217,7 +217,7 @@ async function ensureReportsTable() {
       id SERIAL PRIMARY KEY,
       report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
       row_order INTEGER NOT NULL,
-      film_identification VARCHAR(255),
+      film_identification VARCHAR(3000),
       thickness VARCHAR(255),
       segment VARCHAR(255),
       film_size VARCHAR(255),
@@ -226,6 +226,11 @@ async function ensureReportsTable() {
       row_data JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE report_rows
+    ALTER COLUMN film_identification TYPE VARCHAR(3000)
   `);
 
   await pool.query(`
@@ -249,8 +254,15 @@ async function ensureReportsTable() {
     ON reports (report_type)
   `);
   await pool.query(`
+    DROP INDEX IF EXISTS idx_report_rows_film_identification
+  `);
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_report_rows_film_identification
-    ON report_rows (film_identification)
+    ON report_rows ((LEFT(film_identification, 255)))
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_report_rows_report_id
+    ON report_rows (report_id)
   `);
 
   console.log('Reports tables verified');
