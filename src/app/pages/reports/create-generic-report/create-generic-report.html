@@ -95,7 +95,7 @@
           </label>
           <button type="button" (click)="openSaveDialog()">Save</button>
           <button type="button" (click)="openLoadDialog()">Load</button>
-          <button type="button" (click)="openUpdateDialog()">Update</button>
+          <button type="button" (click)="openUpdateDialog()">Update as Completed</button>
           <button type="button" class="export-action" (click)="exportPdf()">Export as PDF</button>
           <button type="button" class="export-action" (click)="exportWord()">Export in Word</button>
         </div>
@@ -679,6 +679,15 @@
         >
           {{ dialogMode === 'save' ? 'Save' : 'Load' }}
         </button>
+        <button
+          type="button"
+          class="primary-action"
+          *ngIf="dialogMode === 'save'"
+          [disabled]="!canConfirmDraftDialog"
+          (click)="saveDraftAsCompleted()"
+        >
+          Save as Completed
+        </button>
       </div>
 
     </section>
@@ -687,7 +696,7 @@
   <div class="dialog-backdrop" *ngIf="confirmMode" role="presentation" (click)="closeConfirmDialog()">
     <section class="draft-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitle" (click)="$event.stopPropagation()">
       <div class="dialog-header">
-        <p class="eyebrow">{{ confirmMode === 'reset' ? 'Reset report' : confirmMode === 'update' ? 'Update record' : 'Delete draft' }}</p>
+        <p class="eyebrow">{{ confirmMode === 'reset' ? 'Reset report' : confirmMode === 'update' ? 'Update as Completed' : 'Delete draft' }}</p>
         <h2 id="confirmDialogTitle">{{ confirmDialogTitle }}</h2>
       </div>
 
@@ -696,7 +705,7 @@
       <div class="dialog-actions">
         <button type="button" (click)="closeConfirmDialog()">Cancel</button>
         <button type="button" class="primary-action" (click)="confirmAction()">
-          {{ confirmMode === 'reset' ? 'Yes, Reset' : confirmMode === 'update' ? 'Yes, Update' : 'Yes, Delete' }}
+          {{ confirmMode === 'reset' ? 'Yes, Reset' : confirmMode === 'update' ? 'Yes, Update as Completed' : 'Yes, Delete' }}
         </button>
       </div>
     </section>

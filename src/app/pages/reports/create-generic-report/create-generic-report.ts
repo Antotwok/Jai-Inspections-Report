@@ -116,6 +116,7 @@ type DropdownKey =
 type DraftDialogMode = 'save' | 'load' | '';
 type ConfirmDialogMode = 'update' | 'reset' | 'deleteDraft' | '';
 type CombinationDialogMode = '' | 'addCombination';
+type SaveMode = 'draft' | 'completed';
 
 
 const OTHER_OPTION = '__OTHERS__';
@@ -240,6 +241,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
   evaluatedByOptionsText = '';
   reviewedByOptionsText = '';
+  saveMode: SaveMode = 'draft';
   private saveStatusTimer?: number;
 
   constructor(
@@ -748,6 +750,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
   openSaveDialog(): void {
     this.draftDialogName = this.fieldValue('Report No') || this.draftDialogName || 'NABL RT Report';
     this.dialogMode = 'save';
+    this.saveMode = 'draft';
   }
 
   openUpdateDialog(): void {
@@ -766,6 +769,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
   closeDraftDialog(): void {
     this.dialogMode = '';
+    this.saveMode = 'draft';
   }
 
   closeConfirmDialog(): void {
@@ -793,7 +797,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
     if (this.confirmMode === 'update') {
       this.confirmMode = '';
-      this.updateExistingDraft();
+      this.updateExistingDraft('COMPLETED');
       return;
     }
 
@@ -846,7 +850,7 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
 
   confirmDraftDialog(): void {
     if (this.dialogMode === 'save') {
-      void this.saveDraft();
+      void this.saveDraft('draft');
       return;
     }
 
@@ -855,7 +859,11 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
-  private async saveDraft(): Promise<void> {
+  async saveDraftAsCompleted(): Promise<void> {
+    await this.saveDraft('completed');
+  }
+
+  private async saveDraft(mode: SaveMode): Promise<void> {
     const normalizedName = this.draftDialogName.trim();
     if (!normalizedName) {
       this.showSaveStatus('Draft name is required.', 'error');
@@ -863,22 +871,28 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
 
     try {
-      const payload = this.createReportPayload('NABL', 'DRAFT');
+      const payload = this.createReportPayload('NABL', mode === 'completed' ? 'COMPLETED' : 'DRAFT');
       console.log('[report:save]', payload);
       const saved = await firstValueFrom(this.reportService.createReport(payload));
       await this.saveNamedDraftToServer(normalizedName, this.createDraftSnapshot());
       this.currentReportId = saved.id;
       this.selectedDraftToLoad = String(saved.id);
       await this.refreshNextReportNumber();
+      await this.refreshAvailableReports();
       await this.refreshNextAvailableSequence();
       this.customerService.notifySequenceChanged();
       this.closeDraftDialog();
-      await this.router.navigate(['/reports']);
+      const statusMsg = mode === 'completed' ? 'Report Completed Successfully' : 'Report Saved Successfully';
       this.showSaveStatus(
         this.nextAvailableSequence
-          ? `Report "${normalizedName}" saved successfully. Next Available Sequence: ${this.nextAvailableSequence}`
-          : `Report "${normalizedName}" saved successfully.`,
+          ? `${statusMsg}. Next Available Sequence: ${this.nextAvailableSequence}`
+          : statusMsg,
         'success'
+      );
+      void this.advanceSequenceAfterSave(
+        mode === 'completed'
+          ? `Report "${normalizedName}" completed successfully.`
+          : `Report "${normalizedName}" saved successfully.`
       );
     } catch (error: any) {
       console.error('[report:save:error]', error);
@@ -886,28 +900,59 @@ export class CreateGenericReportComponent implements AfterViewInit, OnDestroy, O
     }
   }
 
-  private async updateExistingDraft(): Promise<void> {
+  private async updateExistingDraft(status: 'DRAFT' | 'COMPLETED' = 'DRAFT'): Promise<void> {
     if (!this.currentReportId) {
       this.showSaveStatus('Load a report before updating an existing record.', 'error');
       return;
     }
 
     try {
-      const payload = this.createReportPayload('NABL', 'DRAFT');
+      const payload = this.createReportPayload('NABL', status);
       console.log('[report:update]', { reportId: this.currentReportId, payload });
       await firstValueFrom(this.reportService.updateReport(this.currentReportId, payload));
+      await this.refreshAvailableReports();
       await this.refreshNextAvailableSequence();
       this.customerService.notifySequenceChanged();
-      await this.router.navigate(['/reports']);
+      const statusMsg = status === 'COMPLETED' ? 'Report Updated and Marked Completed' : 'Report Updated Successfully';
       this.showSaveStatus(
         this.nextAvailableSequence
-          ? `Report "${this.fieldValue('Report No')}" updated successfully. Next Available Sequence: ${this.nextAvailableSequence}`
-          : `Report "${this.fieldValue('Report No')}" updated successfully.`,
+          ? `${statusMsg}. Next Available Sequence: ${this.nextAvailableSequence}`
+          : statusMsg,
         'success'
+      );
+      void this.advanceSequenceAfterSave(
+        status === 'COMPLETED'
+          ? `Report "${this.fieldValue('Report No')}" updated and marked completed successfully.`
+          : `Report "${this.fieldValue('Report No')}" updated successfully.`
       );
     } catch (error: any) {
       console.error('[report:update:error]', error);
       this.showSaveStatus(error?.error?.message || error?.message || 'Failed to update report.', 'error');
+    }
+  }
+
+  private async advanceSequenceAfterSave(baseMessage: string): Promise<void> {
+    const partNumber = this.selectedPartNumber || this.getSelectedPart()?.part_number || '';
+    const dateCode = this.selectedDateCode || '';
+
+    if (!partNumber || !dateCode) {
+      this.validationMessage = baseMessage;
+      return;
+    }
+
+    try {
+      const result = await firstValueFrom(
+        this.customerService.advancePartDateCodeSequence(partNumber, dateCode, this.collectFilmIdentifications())
+      );
+
+      this.validationMessage = result?.message ? `${baseMessage} ${result.message}` : baseMessage;
+      if (!result?.message && result?.next_available_sequence) {
+        this.validationMessage = `${baseMessage} Sequence updated.`;
+      }
+      await this.refreshNextAvailableSequence();
+    } catch (error: any) {
+      const message = error?.error?.message || 'Failed to update sequence.';
+      this.validationMessage = `${baseMessage} ${message}`;
     }
   }
 
